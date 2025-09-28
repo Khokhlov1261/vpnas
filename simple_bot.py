@@ -15,7 +15,7 @@ logging.basicConfig(format='[%(levelname)s] %(asctime)s %(message)s', level=logg
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = os.getenv("WEB_APP_URL", "https://147.45.117.195:9000")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "http://147.45.117.195:9000")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
 
 PLANS = {
