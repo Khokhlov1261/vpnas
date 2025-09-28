@@ -418,18 +418,17 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+    from telegram.ext import Application
 
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    application = Application.builder().token(BOT_TOKEN).build()
 
-    # Создаем задачу для бота
-    loop.create_task(main())
+    # Добавляем обработчики
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("plans", plans_command))
+    application.add_handler(CommandHandler("account", account_command))
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    application.add_error_handler(error_handler)
 
-    # Запускаем loop
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        pass
+    # Запускаем polling без закрытия loop
+    application.run_polling(close_loop=False)
