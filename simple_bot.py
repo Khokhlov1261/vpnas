@@ -14,6 +14,10 @@ import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.constants import ParseMode
+pip install python-dotenv
+
+from dotenv import load_dotenv
+load_dotenv()  # загружает переменные из .env в os.environ
 
 # Настройка логирования
 logging.basicConfig(
