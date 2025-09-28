@@ -11,8 +11,8 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.filters import Command
-
 from dotenv import load_dotenv
+
 load_dotenv()  # загружает переменные из .env в os.environ
 
 # Настройка логирования
@@ -24,8 +24,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфигурация
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o")
-WEB_APP_URL = "https://147.45.117.195:9000"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://147.45.117.195:9000")
 
 # Тарифы
 PLANS = {
@@ -35,6 +35,7 @@ PLANS = {
     3: {"name": "12 месяцев", "price": 999, "days": 365, "emoji": "🗓️"}
 }
 
+# -------------------- Работа с базой --------------------
 def get_db_connection():
     try:
         conn = psycopg2.connect(
@@ -50,7 +51,6 @@ def get_db_connection():
         return None
 
 def create_user(telegram_id, username, first_name, last_name, language_code):
-    """Создание пользователя в базе данных"""
     try:
         conn = get_db_connection()
         if not conn:
@@ -82,10 +82,11 @@ def create_user(telegram_id, username, first_name, last_name, language_code):
         logger.error(f"Error creating user: {e}")
         return None
 
-# Инициализация бота
+# -------------------- Инициализация бота --------------------
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
+# -------------------- Клавиатуры --------------------
 def get_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
@@ -101,6 +102,54 @@ def get_plans_keyboard():
         keyboard.append([InlineKeyboardButton(text=button_text, callback_data=f"plan_{plan_id}")])
     keyboard.append([InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+# -------------------- Хэндлеры --------------------
+@dp.message(Command("start"))
+async def start_command(message: types.Message):
+    user = message.from_user
+    create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
+
+    welcome_text = f"""
+🔒 <b>Добро пожаловать в SecureLink VPN!</b>
+
+Привет, {user.first_name}! 👋
+
+Я помогу вам подключиться к нашему быстрому и безопасному VPN с протоколом WireGuard.
+
+<b>Что я умею:</b>
+• 🚀 Подключить к VPN за 30 секунд
+• 💳 Принять оплату через YooKassa
+• 📱 Отправить конфигурацию и QR-код
+• 📊 Показать статистику использования
+• 🔧 Управлять подписками
+
+<b>Выберите действие:</b>
+    """
+    await message.answer(welcome_text, reply_markup=get_main_keyboard())
+
+@dp.message(Command("help"))
+async def help_command(message: types.Message):
+    help_text = f"""
+🔒 <b>SecureLink VPN - Помощь</b>
+
+<b>Основные команды:</b>
+/start - Начать работу с ботом
+/plans - Показать тарифы
+/account - Мой аккаунт
+/help - Эта справка
+
+<b>Для управления подписками используйте личный кабинет:</b>
+🚀 Личный кабинет: {WEB_APP_URL}/dashboard
+    """
+    await message.answer(help_text)
+
+@dp.callback_query(lambda c: c.data == "show_plans")
+async def show_plans_callback(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "💰 <b>Тарифы SecureLink VPN</b>\n\nВыберите подходящий тариф:",
+        reply_markup=get_plans_keyboard()
+    )
+    await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("plan_"))
 async def plan_details(callback: types.CallbackQuery):
@@ -170,6 +219,7 @@ async def my_account(callback: types.CallbackQuery):
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
+# -------------------- Запуск бота --------------------
 async def main():
     logger.info("Starting SecureLink Telegram Bot (aiogram 3)...")
     try:
