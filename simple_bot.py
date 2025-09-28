@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://147.45.117.195:9000")
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "http://147.45.117.195:9000")
 
 # Тарифы
 PLANS = {
