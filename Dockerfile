@@ -1,21 +1,12 @@
-# Используем официальный образ Python
 FROM python:3.12-slim
 
-# Рабочая директория
 WORKDIR /app
 
-# Копируем файлы проекта
-COPY . /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Устанавливаем pip и зависимости
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir python-telegram-bot psycopg2-binary python-dotenv python-dateutil gunicorn
+COPY . .
 
-# Делаем скрипт запуска исполняемым
-RUN chmod +x start.sh
-
-# Открываем порты
+# Если не используем nginx, просто стартуем бота через start.sh
 EXPOSE 8080 9000
-
-# Запуск
 CMD ["./start.sh"]
