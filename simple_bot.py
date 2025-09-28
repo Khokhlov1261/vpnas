@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация из .env
 BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = os.getenv("WEB_APP_URL", "http://127.0.0.1:9000")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "https://127.0.0.1:9000")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
 
 # Тарифы
