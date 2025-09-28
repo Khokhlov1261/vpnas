@@ -36,10 +36,15 @@ PLANS = {
 }
 
 def get_db_connection():
-    """Получение соединения с базой данных"""
     try:
-        conninfo = os.environ.get("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
-        return psycopg2.connect(conninfo)
+        conn = psycopg2.connect(
+            dbname=os.environ.get("PG_DB", "securelink_db"),
+            user=os.environ.get("PG_USER", "securelink"),
+            password=os.environ.get("PG_PASSWORD"),
+            host=os.environ.get("PG_HOST", "localhost"),
+            port=os.environ.get("PG_PORT", 5432)
+        )
+        return conn
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         return None
