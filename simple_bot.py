@@ -3,17 +3,17 @@
 Простой Telegram Bot для SecureLink VPN
 """
 import os
-import sys
-import json
 import logging
-import asyncio
 import psycopg2
 from datetime import datetime
+from dotenv import load_dotenv  # <--- добавляем
 
-import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.constants import ParseMode
+
+# Загружаем .env
+load_dotenv()
 
 # Настройка логирования
 logging.basicConfig(
@@ -23,9 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Конфигурация
-BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = "http://127.0.0.1:9000" ###
+# Конфигурация из .env
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "http://127.0.0.1:9000")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
 
 # Тарифы
 PLANS = {
@@ -38,8 +39,7 @@ PLANS = {
 def get_db_connection():
     """Получение соединения с базой данных"""
     try:
-        conninfo = os.environ.get("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
-        return psycopg2.connect(conninfo)
+        return psycopg2.connect(DATABASE_URL)
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         return None
