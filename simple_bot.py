@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Простой Telegram Bot для SecureLink VPN
+Простой Telegram Bot для SecureLink VPN (исправленная версия)
 """
 import os
 import logging
@@ -15,7 +15,7 @@ from telegram.constants import ParseMode
 # Загружаем .env
 load_dotenv()
 
-# Настройка логирования
+# Логирование
 logging.basicConfig(
     format='[%(levelname)s] %(asctime)s %(message)s',
     level=logging.INFO,
@@ -23,9 +23,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Конфигурация из .env
+# Конфигурация
 BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = os.getenv("WEB_APP_URL", "https://127.0.0.1:9000")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "http://127.0.0.1:9000")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
 
 # Тарифы
@@ -36,11 +36,7 @@ PLANS = {
     3: {"name": "12 месяцев", "price": 999, "days": 365, "emoji": "🗓️"}
 }
 
-# ================================
-# База данных
-# ================================
 def get_db_connection():
-    """Получение соединения с базой данных"""
     try:
         return psycopg2.connect(DATABASE_URL)
     except Exception as e:
@@ -48,7 +44,6 @@ def get_db_connection():
         return None
 
 def create_user(telegram_id, username, first_name, last_name, language_code):
-    """Создание пользователя в базе данных"""
     try:
         conn = get_db_connection()
         if not conn:
@@ -63,8 +58,7 @@ def create_user(telegram_id, username, first_name, last_name, language_code):
             return existing_user[0]
         cursor.execute("""
             INSERT INTO users (telegram_id, username, first_name, last_name, language_code, created_at, last_login)
-            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-            RETURNING id
+            VALUES (%s,%s,%s,%s,%s,NOW(),NOW()) RETURNING id
         """, (telegram_id, username, first_name, last_name, language_code))
         user_id = cursor.fetchone()[0]
         conn.commit()
@@ -75,39 +69,18 @@ def create_user(telegram_id, username, first_name, last_name, language_code):
         logger.error(f"Error creating user: {e}")
         return None
 
-# ================================
-# Команды бота
-# ================================
+# ------------------- Команды -------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка команды /start"""
     user = update.effective_user
-    user_id = create_user(
-        telegram_id=user.id,
-        username=user.username,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        language_code=user.language_code
-    )
-    if not user_id:
-        await update.message.reply_text("❌ Ошибка инициализации. Попробуйте позже.")
-        return
+    create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
 
     welcome_text = f"""
 🔒 <b>Добро пожаловать в SecureLink VPN!</b>
 
 Привет, {user.first_name}! 👋
 
-Я помогу вам подключиться к нашему быстрому и безопасному VPN с протоколом WireGuard.
-
-<b>Что я умею:</b>
-• 🚀 Подключить к VPN за 30 секунд
-• 💳 Принять оплату через YooKassa
-• 📱 Отправить конфигурацию и QR-код
-• 📊 Показать статистику использования
-• 🔧 Управлять подписками
-
 <b>Выберите действие:</b>
-    """
+"""
     keyboard = [
         [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
         [InlineKeyboardButton("📊 Мой аккаунт", callback_data="my_account")],
@@ -118,237 +91,135 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка команды /help"""
     help_text = """
 🔒 <b>SecureLink VPN - Помощь</b>
 
 <b>Основные команды:</b>
-/start - Начать работу с ботом
-/plans - Показать тарифы
-/account - Мой аккаунт
-/help - Эта справка
-
-<b>Как подключиться:</b>
-1️⃣ Выберите тариф
-2️⃣ Оплатите подписку
-3️⃣ Получите конфигурацию
-4️⃣ Установите WireGuard
-5️⃣ Наслаждайтесь быстрым VPN!
-
-<b>Поддержка:</b>
-📧 mailrealeden@yahoo.com
-🤖 Этот бот
-
-<b>Протокол:</b> WireGuard
-<b>Шифрование:</b> ChaCha20, Poly1305, Curve25519
-    """
+/start, /plans, /account, /help
+"""
     keyboard = [
         [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
         [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(help_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    await update.message.reply_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def plans_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка команды /plans"""
-    await show_plans(update, context)
+    await show_plans_callback(update)
 
 async def account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка команды /account"""
-    await show_account(update, context)
+    await show_account_callback(update)
 
-# ================================
-# Функции для кнопок
-# ================================
-async def show_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать тарифы"""
-    plans_text = "💰 <b>Тарифы SecureLink VPN</b>\n\nВыберите подходящий тариф:"
+# ------------------- Callback -------------------
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "show_plans":
+        await show_plans_callback(query)
+    elif data == "my_account":
+        await show_account_callback(query)
+    elif data == "help":
+        await help_callback(query)
+    elif data.startswith("plan_"):
+        plan_id = int(data.split("_")[1])
+        await show_plan_details_callback(query, plan_id)
+    elif data.startswith("pay_"):
+        plan_id = int(data.split("_")[1])
+        await create_payment_callback(query, plan_id)
+    elif data == "show_stats":
+        await show_stats_callback(query)
+
+# ------------------- Callback Handlers -------------------
+async def show_plans_callback(query):
+    text = "💰 <b>Тарифы SecureLink VPN</b>\nВыберите тариф:"
     keyboard = []
     for plan_id, plan in PLANS.items():
         button_text = f"{plan['emoji']} {plan['name']} - {plan['price']} ₽"
         keyboard.append([InlineKeyboardButton(button_text, callback_data=f"plan_{plan_id}")])
     keyboard.append([InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.callback_query:
-        await update.callback_query.edit_message_text(plans_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(plans_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def show_plan_details(update: Update, context: ContextTypes.DEFAULT_TYPE, plan_id: int):
-    """Показать детали тарифа"""
-    plan = PLANS.get(plan_id)
-    if not plan:
+async def show_plan_details_callback(query, plan_id: int):
+    if plan_id not in PLANS:
         return
-    plan_text = f"""
+    plan = PLANS[plan_id]
+    text = f"""
 {plan['emoji']} <b>{plan['name']}</b>
-
 <b>Цена:</b> {plan['price']} ₽
 <b>Срок:</b> {plan['days']} дней
 <b>Трафик:</b> Безлимитный
-<b>Серверы:</b> Все доступные
+<b>Серверы:</b> Все
 <b>Поддержка:</b> 24/7
-
-<b>Что включено:</b>
-✅ Протокол WireGuard
-✅ Неограниченный трафик
-✅ Все серверы
-✅ Техническая поддержка
-✅ Автоматическое продление
-✅ QR-код для быстрой установки
-
-<b>Готовы подключиться?</b>
-    """
+"""
     keyboard = [
         [InlineKeyboardButton("💳 Оплатить", callback_data=f"pay_{plan_id}")],
         [InlineKeyboardButton("🔙 Назад к тарифам", callback_data="show_plans")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.callback_query:
-        await update.callback_query.edit_message_text(plan_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def create_payment_callback(query, plan_id: int):
+    plan = PLANS.get(plan_id)
+    if not plan:
+        await query.edit_message_text("❌ Неверный тариф")
+        return
+    if plan['price'] == 0:
+        text = "🎉 Бесплатный тариф активирован! Используйте личный кабинет для конфигурации."
     else:
-        await update.message.reply_text(plan_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+        text = f"💳 Оплата тарифа {plan['name']}, сумма: {plan['price']} ₽\nПерейдите в личный кабинет для оплаты."
+    keyboard = [
+        [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
+        [InlineKeyboardButton("🔙 Назад", callback_data="show_plans")]
+    ]
+    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def show_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать информацию об аккаунте"""
-    user = update.effective_user
-    account_text = f"""
+async def show_account_callback(query):
+    user = query.from_user
+    text = f"""
 👤 <b>Мой аккаунт</b>
-
 <b>Пользователь:</b> {user.first_name} {user.last_name or ''}
 <b>Username:</b> @{user.username or 'не указан'}
 <b>ID:</b> {user.id}
-
-<b>Статус:</b> ✅ Активен
-<b>Дата регистрации:</b> {datetime.now().strftime('%d.%m.%Y')}
-
-<b>Для управления подписками используйте личный кабинет:</b>
-    """
+"""
     keyboard = [
         [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
         [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
         [InlineKeyboardButton("📊 Статистика", callback_data="show_stats")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.callback_query:
-        await update.callback_query.edit_message_text(account_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(account_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать статистику"""
-    user = update.effective_user
-    stats_text = f"""
-📊 <b>Статистика использования</b>
-
-<b>Пользователь:</b> {user.first_name}
-<b>Дата регистрации:</b> {datetime.now().strftime('%d.%m.%Y')}
-
-<b>Трафик за месяц:</b>
-• 📥 Скачано: 0 MB
-• 📤 Загружено: 0 MB
-• 📊 Всего: 0 MB
-
-<b>Активные сессии:</b> 0
-
-<b>Для детальной статистики используйте личный кабинет:</b>
-    """
+async def show_stats_callback(query):
+    user = query.from_user
+    text = f"📊 <b>Статистика</b>\n<b>Пользователь:</b> {user.first_name}\nТрафик: 0 MB"
     keyboard = [
         [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
         [InlineKeyboardButton("🔙 Назад", callback_data="my_account")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.edit_message_text(stats_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, plan_id: int):
-    """Создание платежа"""
-    plan = PLANS.get(plan_id)
-    if not plan:
-        await update.callback_query.edit_message_text("❌ Неверный тариф")
-        return
-    if plan['price'] == 0:
-        await update.callback_query.edit_message_text(
-            "🎉 <b>Бесплатный тариф активирован!</b>\n\nВаш VPN готов к использованию на 3 дня.\nИспользуйте личный кабинет для получения конфигурации.",
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        payment_text = f"""
-💳 <b>Оплата тарифа "{plan['name']}"</b>
+async def help_callback(query):
+    text = "🔒 <b>Помощь SecureLink VPN</b>\nОсновные команды: /start, /plans, /account"
+    keyboard = [
+        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))]
+    ]
+    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
-<b>Сумма:</b> {plan['price']} ₽
-<b>Срок:</b> {plan['days']} дней
-
-<b>Способы оплаты:</b>
-• 💳 Банковская карта
-• 📱 СБП (Система быстрых платежей)
-• 🏦 Банковский перевод
-
-<b>Для оплаты перейдите в личный кабинет:</b>
-        """
-        keyboard = [
-            [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
-            [InlineKeyboardButton("🔙 Назад", callback_data="show_plans")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.callback_query.edit_message_text(payment_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-
-# ================================
-# Обработка callback
-# ================================
-async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer("Обрабатываем...")
-    data = query.data
-    if data == "show_plans":
-        await show_plans(update, context)
-    elif data == "my_account":
-        await show_account(update, context)
-    elif data == "help":
-        await help_command(update, context)
-    elif data.startswith("plan_"):
-        plan_id = int(data.split("_")[1])
-        await show_plan_details(update, context, plan_id)
-    elif data.startswith("pay_"):
-        plan_id = int(data.split("_")[1])
-        await create_payment(update, context, plan_id)
-    elif data == "show_stats":
-        await show_stats(update, context)
-
-# ================================
-# Обработка ошибок
-# ================================
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ------------------- Ошибки -------------------
+async def error_handler(update, context):
     logger.error(f"Update {update} caused error {context.error}")
 
-# ================================
-# Запуск бота
-# ================================
-async def main():
+# ------------------- Main -------------------
+def main():
     application = Application.builder().token(BOT_TOKEN).build()
-    # Обработчики команд
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("plans", plans_command))
     application.add_handler(CommandHandler("account", account_command))
-    # Обработчик кнопок
     application.add_handler(CallbackQueryHandler(handle_callback_query))
-    # Ошибки
     application.add_error_handler(error_handler)
     logger.info("Starting SecureLink Telegram Bot...")
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == "__main__":
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    # Обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("plans", plans_command))
-    application.add_handler(CommandHandler("account", account_command))
-    # Обработчик кнопок
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    # Ошибки
-    application.add_error_handler(error_handler)
-
-    # Запуск polling
-    logger.info("Starting SecureLink Telegram Bot...")
-    application.run_polling(close_loop=False)
+    main()
