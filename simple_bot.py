@@ -417,13 +417,19 @@ async def main():
 
 
 if __name__ == "__main__":
+    import asyncio
+
     try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "already running" in str(e):
-            # Если loop уже запущен (например, в IDE или другом процессе)
-            loop = asyncio.get_event_loop()
-            loop.create_task(main())
-            loop.run_forever()
-        else:
-            raise
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    # Создаем задачу для бота
+    loop.create_task(main())
+
+    # Запускаем loop
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
