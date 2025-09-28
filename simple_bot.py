@@ -222,4 +222,17 @@ def main():
     application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    from telegram.ext import Application
+
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Обработчики
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("plans", plans_command))
+    application.add_handler(CommandHandler("account", account_command))
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    application.add_error_handler(error_handler)
+
+    # Запуск
+    application.run_polling()
