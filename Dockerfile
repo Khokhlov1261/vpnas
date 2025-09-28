@@ -1,30 +1,21 @@
+# Используем официальный образ Python
 FROM python:3.12-slim
 
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    nginx \
-    && rm -rf /var/lib/apt/lists/*
-
-# Создаём рабочую директорию
+# Рабочая директория
 WORKDIR /app
 
-# Копируем файлы
-COPY requirements.txt .
-COPY App.py .
-COPY simple_bot.py .
-COPY start.sh .
-COPY nginx/default.conf /etc/nginx/sites-enabled/default
+# Копируем файлы проекта
+COPY . /app
 
-# Устанавливаем Python зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+# Устанавливаем pip и зависимости
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir python-telegram-bot psycopg2-binary python-dotenv python-dateutil gunicorn
 
 # Делаем скрипт запуска исполняемым
 RUN chmod +x start.sh
 
-# expose порты
-EXPOSE 80 9000
+# Открываем порты
+EXPOSE 8080 9000
 
-# Запуск всех процессов
+# Запуск
 CMD ["./start.sh"]
