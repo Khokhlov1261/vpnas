@@ -23,7 +23,7 @@ COPY . .
 RUN chmod +x start.sh
 
 # Копируем конфиг nginx
-COPY nginx.conf /etc/nginx/sites-available/default
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
 # Порты: 80 для Nginx, 9000 для Gunicorn (внутренний)
 EXPOSE 80 9000
