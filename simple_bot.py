@@ -131,13 +131,15 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await show_stats_callback(query)
 
 # ------------------- Callback Handlers -------------------
-async def show_plans_callback(query):
+async def show_plans_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
     text = "💰 <b>Тарифы SecureLink VPN</b>\nВыберите тариф:"
-    keyboard = []
-    for plan_id, plan in PLANS.items():
-        button_text = f"{plan['emoji']} {plan['name']} - {plan['price']} ₽"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"plan_{plan_id}")])
-    keyboard.append([InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))])
+    keyboard = [
+        [InlineKeyboardButton(f"{plan['emoji']} {plan['name']} - {plan['price']} ₽", callback_data=f"plan_{pid}")]
+        for pid, plan in PLANS.items()
+    ]
+    keyboard.append([InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")])
     await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_plan_details_callback(query, plan_id: int):
