@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>WireGuard Admin</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body>
+
+<h2>Подключённые клиенты</h2>
+<table id="traffic-table">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Plan</th>
+            <th>Client IP</th>
+            <th>Public Key</th>
+            <th>RX (MB)</th>
+            <th>TX (MB)</th>
+            <th>Online</th>
+            <th>Last seen</th> <!-- добавили колонку -->
+            <th>Start</th>
+            <th>End</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- сюда JS будет подставлять данные -->
+    </tbody>
+</table>
+
+<h2>Мониторинг сервера</h2>
+<div id="server-stats">
+    CPU: <span id="cpu">0</span>% |
+    RAM: <span id="ram">0</span>% |
+    Disk: <span id="disk">0</span>%
+</div>
+
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>

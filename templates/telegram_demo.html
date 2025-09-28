@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureLink - Демо авторизации</title>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .logo h1 {
+            color: #6366f1;
+            font-size: 2rem;
+            margin: 0;
+        }
+        .demo-section {
+            margin-bottom: 2rem;
+        }
+        .demo-section h2 {
+            color: #f8fafc;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: #6366f1;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .btn:hover {
+            background: #4f46e5;
+        }
+        .btn-secondary {
+            background: #334155;
+        }
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        .info {
+            background: #334155;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        .status.success {
+            background: #065f46;
+            color: #d1fae5;
+        }
+        .status.error {
+            background: #7f1d1d;
+            color: #fecaca;
+        }
+        .code {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>SecureLink VPN</h1>
+            <p>Демо авторизации через Telegram</p>
+        </div>
+
+        <div class="demo-section">
+            <h2>🚀 Демонстрация функций</h2>
+            <div class="info">
+                <strong>Что реализовано:</strong><br>
+                ✅ Авторизация через Telegram Web App<br>
+                ✅ Личный кабинет с современным UI<br>
+                ✅ API для управления подписками<br>
+                ✅ Отслеживание трафика<br>
+                ✅ PostgreSQL база данных<br>
+                ✅ JWT токены для безопасности
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🔐 Тестовая авторизация</h2>
+            <p>Для демонстрации создан тестовый пользователь:</p>
+            <div class="info">
+                <strong>Тестовый пользователь:</strong><br>
+                👤 Username: @testuser<br>
+                📧 Email: test@example.com<br>
+                📱 Telegram ID: 123456789<br>
+                📋 Подписка: 1 месяц (99₽)
+            </div>
+            
+            <button class="btn" onclick="loginAsTestUser()">
+                🔑 Войти как тестовый пользователь
+            </button>
+            
+            <button class="btn btn-secondary" onclick="testAPI()">
+                🧪 Тестировать API
+            </button>
+        </div>
+
+        <div class="demo-section">
+            <h2>📱 Реальная авторизация через Telegram</h2>
+            <p>✅ Telegram Bot настроен и готов к использованию!</p>
+            <div class="info">
+                <strong>🤖 Ваш бот:</strong> @Securelinkvpn_bot<br>
+                <strong>🌐 Web App:</strong> <a href="https://a2c4260d9b8d.ngrok-free.app/auth" target="_blank">https://a2c4260d9b8d.ngrok-free.app/auth</a><br>
+                <strong>📱 Как использовать:</strong><br>
+                1. Откройте Telegram<br>
+                2. Найдите @Securelinkvpn_bot<br>
+                3. Нажмите кнопку "🚀 Открыть VPN"<br>
+                4. Авторизуйтесь автоматически
+            </div>
+            
+            <button class="btn btn-secondary" onclick="openTelegramBot()">
+                📱 Открыть бота в Telegram
+            </button>
+            
+            <button class="btn btn-secondary" onclick="openWebApp()">
+                🌐 Открыть Web App
+            </button>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const TEST_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJpYXQiOjE3NTg5ODEyNTYsImV4cCI6MTc1OTU4NjA1NiwidHlwZSI6ImFjY2Vzc190b2tlbiJ9.XyVP6DdrLg8-VvAilNPae_JciGARbCxSpueuxVgzx8s';
+
+        function showStatus(message, type = 'success') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function loginAsTestUser() {
+            // Сохраняем токен в localStorage
+            localStorage.setItem('authToken', TEST_TOKEN);
+            
+            showStatus('✅ Токен сохранен! Переходим в личный кабинет...', 'success');
+            
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1000);
+        }
+
+        async function testAPI() {
+            try {
+                const response = await fetch('/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${TEST_TOKEN}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus(`✅ API работает! Пользователь: ${data.user.first_name} ${data.user.last_name} (@${data.user.username})`, 'success');
+                } else {
+                    showStatus(`❌ Ошибка API: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ Ошибка: ${error.message}`, 'error');
+            }
+        }
+
+        function openTelegramBot() {
+            window.open('https://t.me/Securelinkvpn_bot', '_blank');
+        }
+
+        function openWebApp() {
+            window.open('https://a2c4260d9b8d.ngrok-free.app/auth', '_blank');
+        }
+
+        // Проверяем, авторизован ли пользователь
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                showStatus('🔑 Вы уже авторизованы! <a href="/dashboard" style="color: #6366f1;">Перейти в личный кабинет</a>', 'success');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SecureLink — Конфигурация</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='config.css') }}">
+  <!--<link rel="stylesheet" href="/static/config.css">-->
+</head>
+<body>
+  <!-- Добавляем data-атрибуты для передачи данных из Flask -->
+  <div id="app"
+       data-config='{{ conf_text|tojson|safe }}'
+       data-plan='{{ order.plan.name | default("Неизвестно") | tojson | safe }}'
+       data-price='{{ order.plan.price | default(0) | tojson | safe }}'>
+
+    <header class="header">
+      <h1>SecureLink</h1>
+      <p class="lead">Ваш безопасный VPN активирован! Используйте WireGuard для подключения.<br> Так же конфигурация отправлена на почту со сроком дейсвия подписки!</p>
+    </header>
+
+    <main class="main-grid">
+      <section class="config-section">
+        <h2 class="section-title">Конфигурация WireGuard</h2>
+        <div class="status" id="status">Генерация конфигурации...</div>
+
+        <div class="download" id="downloadArea">
+          <a id="downloadLink" href="#" download class="btn">Скачать конфигурацию (.conf)</a>
+          <div class="note">Или отсканируйте QR-код через приложение WireGuard</div>
+          <div class="note info-box">
+  <p>Вы уже скачивали конфигурацию ранее? Отлично!</p>
+  <p>Подключайтесь через WireGuard как обычно — никаких новых действий не требуется.</p>
+  <p>Подписка автоматически продлена.</p>
+</div>
+          <div class="qr" id="qrContainer"></div>
+        </div>
+
+        <div class="instructions">
+          <h3>Инструкция подключения</h3>
+          <ol>
+          <li>Скачайте приложение WireGuard на своё устройство (<a href="https://apps.apple.com/app/wireguard/id1441195209" target="_blank">iOS</a>, <a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank">Android</a>, <a href="https://www.wireguard.com/install/" target="_blank">Windows / macOS / Linux</a>).</li>
+          <li>Получите конфигурацию — файл <code>.conf</code> или QR-код после оплаты.</li>
+          <li>Добавьте конфигурацию в приложение:</li>
+          <li>На телефоне: «+» → «Сканировать QR-код» или «Импорт из файла»</li>
+          <li>На компьютере: «Добавить туннель» → выберите файл</li>
+          <li>Включите подключение — переключатель активен</li>
+          <li>Готово! Соединение установлено, данные защищены</li>
+        </ol>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      © 2025 Secure-Link.ru ИНН: 591906696848 <br>
+      Написать нам: <a href="mailto:mailrealeden@yahoo.com?subject=Вопрос&body=Здравствуйте!"
+      style="color: inherit; text-decoration: none;">mailrealeden@yahoo.com</a>
+    </footer>
+  </div>
+
+  <!-- QR библиотека -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+  <!-- JS -->
+  <script>
+  window.addEventListener('DOMContentLoaded', () => {
+      const statusEl = document.getElementById('status');
+      const downloadLink = document.getElementById('downloadLink');
+      const qrContainer = document.getElementById('qrContainer');
+      const app = document.getElementById('app');
+
+      if (!app) {
+          console.error("Не найден элемент #app");
+          statusEl.textContent = "Ошибка загрузки конфигурации";
+          return;
+      }
+
+      // Безопасно парсим JSON
+      let configText = '';
+      let planName = '';
+      try {
+          configText = JSON.parse(app.dataset.config);
+          planName = JSON.parse(app.dataset.plan || '"Неизвестно"');
+      } catch(e) {
+          console.error("Ошибка парсинга данных:", e);
+          statusEl.textContent = "Ошибка загрузки конфигурации";
+          return;
+      }
+
+      // --- Ссылка на скачивание ---
+      const blob = new Blob([configText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = `securelink_${planName.replace(/\s/g, '')}.conf`;
+      downloadLink.textContent = `Скачать конфиг (${planName})`;
+
+      // --- Генерация QR-кода ---
+      QRCode.toCanvas(configText, { width: 200 }, (err, canvas) => {
+          if(err) {
+              console.error("Ошибка генерации QR:", err);
+              statusEl.textContent = "Ошибка генерации QR-кода";
+          } else {
+              qrContainer.appendChild(canvas);
+              statusEl.textContent = "Конфигурация готова!";
+          }
+      });
+  });
+  </script>
+</body>
+</html>
