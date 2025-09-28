@@ -159,7 +159,7 @@ def init_db():
 # WireGuard helpers
 # ---------------------------
 def run_cmd(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)t
+    return subprocess.run(cmd, capture_output=True, text=True)
 
 def wg_set_peer(public_key: str, allowed_ips: str) -> bool:
     res = run_cmd(["wg", "set", WG_INTERFACE, "peer", public_key, "allowed-ips", allowed_ips])
