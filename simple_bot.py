@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = os.getenv("WEB_APP_URL", "https://127.0.0.1:9000/dashboard")
+WEB_APP_URL = os.getenv("WEB_APP_URL", "https://127.0.0.1:9000")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://alexanderkhokhlov@localhost/securelink")
 
 # Тарифы
@@ -212,16 +212,7 @@ async def error_handler(update, context):
     logger.error(f"Update {update} caused error {context.error}")
 
 # ------------------- Main -------------------
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("plans", plans_command))
-    application.add_handler(CommandHandler("account", account_command))
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    application.add_error_handler(error_handler)
-    logger.info("Starting SecureLink Telegram Bot...")
-    application.run_polling()
+
 
 if __name__ == "__main__":
     from telegram.ext import Application
