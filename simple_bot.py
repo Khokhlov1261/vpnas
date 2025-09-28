@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
+from aiogram.dispatcher.router import Router
 
 # ----------------- Настройка -----------------
 load_dotenv()
@@ -59,9 +60,11 @@ def create_user(user: types.User):
 # ----------------- Бот -----------------
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+router = Router()
+dp.include_router(router)
 
 # ----------------- Команды -----------------
-@dp.message(Command("start"))
+@router.message(Command(commands=["start"]))
 async def start_command(message: types.Message):
     create_user(message.from_user)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -76,7 +79,7 @@ async def start_command(message: types.Message):
         reply_markup=keyboard
     )
 
-@dp.message(Command("help"))
+@router.message(Command(commands=["help"]))
 async def help_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
@@ -88,7 +91,7 @@ async def help_command(message: types.Message):
         reply_markup=keyboard
     )
 
-@dp.message(Command("plans"))
+@router.message(Command(commands=["plans"]))
 async def plans_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -102,7 +105,7 @@ async def plans_command(message: types.Message):
         reply_markup=keyboard
     )
 
-@dp.message(Command("account"))
+@router.message(Command(commands=["account"]))
 async def account_command(message: types.Message):
     user = message.from_user
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -116,9 +119,9 @@ async def account_command(message: types.Message):
     )
 
 # ----------------- Callback -----------------
-@dp.callback_query()
+@router.callback_query()
 async def callback_handler(query: types.CallbackQuery):
-    await query.answer()  # подтверждаем Telegram
+    await query.answer()
     data = query.data
 
     if data == "show_plans":
