@@ -68,10 +68,10 @@ dp.include_router(router)
 async def start_command(message: types.Message):
     create_user(message.from_user)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("📊 Мой аккаунт", callback_data="my_account")],
-        [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
-        [InlineKeyboardButton("❓ Помощь", callback_data="help")]
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
+        [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
     await message.answer(
         f"🔒 <b>Добро пожаловать в SecureLink VPN!</b>\n\nПривет, {message.from_user.first_name}! 👋\n\n<b>Выберите действие:</b>",
@@ -82,8 +82,8 @@ async def start_command(message: types.Message):
 @router.message(Command(commands=["help"]))
 async def help_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]
     ])
     await message.answer(
         "🔒 <b>SecureLink VPN - Помощь</b>\n\n<b>Основные команды:</b>\n/start, /plans, /account, /help",
@@ -95,9 +95,9 @@ async def help_command(message: types.Message):
 async def plans_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(f"{plan['emoji']} {plan['name']} - {plan['price']} ₽", callback_data=f"plan_{pid}")]
+            [InlineKeyboardButton(text=f"{plan['emoji']} {plan['name']} - {plan['price']} ₽", callback_data=f"plan_{pid}")]
             for pid, plan in PLANS.items()
-        ] + [[InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]]
+        ] + [[InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]]
     )
     await message.answer(
         "💰 <b>Тарифы SecureLink VPN</b>\nВыберите тариф:",
@@ -109,8 +109,8 @@ async def plans_command(message: types.Message):
 async def account_command(message: types.Message):
     user = message.from_user
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]
     ])
     await message.answer(
         f"👤 <b>Мой аккаунт</b>\n<b>Пользователь:</b> {user.first_name} {user.last_name or ''}\n<b>Username:</b> @{user.username or 'не указан'}\n<b>ID:</b> {user.id}",
@@ -127,9 +127,9 @@ async def callback_handler(query: types.CallbackQuery):
     if data == "show_plans":
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(f"{plan['emoji']} {plan['name']} - {plan['price']} ₽", callback_data=f"plan_{pid}")]
+                [InlineKeyboardButton(text=f"{plan['emoji']} {plan['name']} - {plan['price']} ₽", callback_data=f"plan_{pid}")]
                 for pid, plan in PLANS.items()
-            ] + [[InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]]
+            ] + [[InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]]
         )
         await query.message.edit_text("💰 <b>Тарифы SecureLink VPN</b>\nВыберите тариф:", parse_mode="HTML", reply_markup=keyboard)
 
@@ -138,8 +138,8 @@ async def callback_handler(query: types.CallbackQuery):
         plan = PLANS.get(plan_id)
         if plan:
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton("💳 Оплатить", callback_data=f"pay_{plan_id}")],
-                [InlineKeyboardButton("🔙 Назад к тарифам", callback_data="show_plans")]
+                [InlineKeyboardButton(text="💳 Оплатить", callback_data=f"pay_{plan_id}")],
+                [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="show_plans")]
             ])
             await query.message.edit_text(
                 f"{plan['emoji']} <b>{plan['name']}</b>\n<b>Цена:</b> {plan['price']} ₽\n<b>Срок:</b> {plan['days']} дней",
@@ -153,17 +153,17 @@ async def callback_handler(query: types.CallbackQuery):
         if plan:
             text = "🎉 Бесплатный тариф активирован!" if plan['price'] == 0 else f"💳 Оплата тарифа {plan['name']} за {plan['price']} ₽"
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
-                [InlineKeyboardButton("🔙 Назад", callback_data="show_plans")]
+                [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="show_plans")]
             ])
             await query.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
 
     elif data == "my_account":
         user = query.from_user
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-            [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
-            [InlineKeyboardButton("📊 Статистика", callback_data="show_stats")]
+            [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+            [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
+            [InlineKeyboardButton(text="📊 Статистика", callback_data="show_stats")]
         ])
         await query.message.edit_text(
             f"👤 <b>Мой аккаунт</b>\n<b>Пользователь:</b> {user.first_name} {user.last_name or ''}\n<b>Username:</b> @{user.username or 'не указан'}\n<b>ID:</b> {user.id}",
@@ -174,8 +174,8 @@ async def callback_handler(query: types.CallbackQuery):
     elif data == "show_stats":
         user = query.from_user
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
-            [InlineKeyboardButton("🔙 Назад", callback_data="my_account")]
+            [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="my_account")]
         ])
         await query.message.edit_text(
             f"📊 <b>Статистика</b>\n<b>Пользователь:</b> {user.first_name}\nТрафик: 0 MB",
@@ -185,8 +185,8 @@ async def callback_handler(query: types.CallbackQuery):
 
     elif data == "help":
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-            [InlineKeyboardButton("🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]
+            [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+            [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")]
         ])
         await query.message.edit_text(
             "🔒 <b>Помощь SecureLink VPN</b>\nОсновные команды: /start, /plans, /account",
