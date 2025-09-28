@@ -337,5 +337,18 @@ async def main():
     await application.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Обработчики команд
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("plans", plans_command))
+    application.add_handler(CommandHandler("account", account_command))
+    # Обработчик кнопок
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    # Ошибки
+    application.add_error_handler(error_handler)
+
+    # Запуск polling
+    logger.info("Starting SecureLink Telegram Bot...")
+    application.run_polling(close_loop=False)
