@@ -88,63 +88,19 @@ dp = Dispatcher()
 
 def get_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("📊 Мой аккаунт", callback_data="my_account")],
-        [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
-        [InlineKeyboardButton("❓ Помощь", callback_data="help")]
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
+        [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
-
-@dp.message(Command("start"))
-async def start_command(message: types.Message):
-    user = message.from_user
-    create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
-
-    welcome_text = f"""
-🔒 <b>Добро пожаловать в SecureLink VPN!</b>
-
-Привет, {user.first_name}! 👋
-
-Я помогу вам подключиться к нашему быстрому и безопасному VPN с протоколом WireGuard.
-
-<b>Что я умею:</b>
-• 🚀 Подключить к VPN за 30 секунд
-• 💳 Принять оплату через YooKassa
-• 📱 Отправить конфигурацию и QR-код
-• 📊 Показать статистику использования
-• 🔧 Управлять подписками
-
-<b>Выберите действие:</b>
-    """
-    await message.answer(welcome_text, reply_markup=get_main_keyboard())
-
-@dp.message(Command("help"))
-async def help_command(message: types.Message):
-    help_text = f"""
-🔒 <b>SecureLink VPN - Помощь</b>
-
-<b>Основные команды:</b>
-/start - Начать работу с ботом
-/plans - Показать тарифы
-/account - Мой аккаунт
-/help - Эта справка
-
-<b>Для управления подписками используйте личный кабинет:</b>
-🚀 Личный кабинет: {WEB_APP_URL}/dashboard
-    """
-    await message.answer(help_text)
 
 def get_plans_keyboard():
     keyboard = []
     for plan_id, plan in PLANS.items():
         button_text = f"{plan['emoji']} {plan['name']} - {plan['price']} ₽"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"plan_{plan_id}")])
-    keyboard.append([InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))])
+        keyboard.append([InlineKeyboardButton(text=button_text, callback_data=f"plan_{plan_id}")])
+    keyboard.append([InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-@dp.callback_query(lambda c: c.data == "show_plans")
-async def show_plans_callback(callback: types.CallbackQuery):
-    await callback.message.edit_text("💰 <b>Тарифы SecureLink VPN</b>\n\nВыберите подходящий тариф:", reply_markup=get_plans_keyboard())
-    await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("plan_"))
 async def plan_details(callback: types.CallbackQuery):
@@ -172,8 +128,8 @@ async def plan_details(callback: types.CallbackQuery):
 ✅ QR-код для быстрой установки
     """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💳 Оплатить", callback_data=f"pay_{plan_id}")],
-        [InlineKeyboardButton("🔙 Назад к тарифам", callback_data="show_plans")]
+        [InlineKeyboardButton(text="💳 Оплатить", callback_data=f"pay_{plan_id}")],
+        [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="show_plans")]
     ])
     await callback.message.edit_text(plan_text, reply_markup=keyboard)
     await callback.answer()
@@ -208,8 +164,8 @@ async def my_account(callback: types.CallbackQuery):
 <b>Дата регистрации:</b> {datetime.now().strftime('%d.%m.%Y')}
 """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))]
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))]
     ])
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
