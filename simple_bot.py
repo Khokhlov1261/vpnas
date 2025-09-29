@@ -1,6 +1,5 @@
 #BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
 
-
 #!/usr/bin/env python3
 """
 Простой Telegram Bot для SecureLink VPN на aiogram 3
@@ -17,7 +16,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.filters import Command
 from dotenv import load_dotenv
 
-load_dotenv()  # загружает переменные из .env в os.environ
+load_dotenv()  # загружает переменные из .env
 
 # -------------------- Логирование --------------------
 logging.basicConfig(
@@ -28,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # -------------------- Конфигурация --------------------
-BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru")
 
 PLANS = {
@@ -68,9 +67,8 @@ def create_user(telegram_id, username, first_name, last_name, language_code):
         conn.close()
         return user_id
 
-    # Создание нового токена
+    # Создаём токен при первом добавлении
     token = secrets.token_urlsafe(32)
-
     cursor.execute("""
         INSERT INTO users (telegram_id, username, first_name, last_name, language_code, created_at, last_login, dashboard_token)
         VALUES (%s, %s, %s, %s, %s, NOW(), NOW(), %s)
@@ -227,3 +225,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
