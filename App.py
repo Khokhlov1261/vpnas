@@ -8,7 +8,6 @@ import json
 import base64
 import qrcode
 
-
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
 from dateutil.relativedelta import relativedelta
@@ -35,7 +34,6 @@ from user_manager import UserManager
 
 from dotenv import load_dotenv
 import os
-
 
 load_dotenv()  # это заставит Python читать .env
 # ---------------------------
@@ -445,76 +443,7 @@ app.config["CONF_DIR"] = CONF_DIR
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
-app.secret_key = "skdjvksdjvksdjvlksdjvksdnv"
-
-JWT_SECRET = "another-super-secret"  # для токенов
-JWT_ALGORITHM = "HS256"
-
-# ---------------------------
-# Вспомогательные функции
-# ---------------------------
-def generate_jwt(user_id):
-    payload = {
-        "user_id": user_id,
-        "exp": datetime.utcnow() + timedelta(hours=2)
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-def decode_jwt(token):
-    try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-    except:
-        return None
-
-# ---------------------------
-# Телеграм авторизация
-# ---------------------------
-@app.route("/auth/telegram", methods=["POST"])
-def telegram_auth():
-    data = request.json
-    # пример: получаем user_id от Telegram
-    user_id = data.get("id")
-    if not user_id:
-        return jsonify({"error": "No user ID"}), 400
-
-    # создаём JWT
-    token = generate_jwt(user_id)
-
-    # сохраняем в session
-    session["user_id"] = user_id
-    session["jwt"] = token
-
-    return jsonify({
-        "token": token,
-        "message": "Авторизация успешна"
-    })
-
-# ---------------------------
-# Личный кабинет
-# ---------------------------
-@app.route("/dashboard")
-def dashboard():
-    if not session.get("user_id"):
-        return redirect(url_for("index"))
-    return render_template("dashboard.html", user_id=session["user_id"])
-
-# ---------------------------
-# Главная страница
-# ---------------------------
-@app.route("/")
-def index():
-    return "Главная страница. Войдите через Telegram."
-
-# ---------------------------
-# Пример API с JWT
-# ---------------------------
-@app.route("/api/user")
-def api_user():
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    payload = decode_jwt(token)
-    if not payload:
-        return jsonify({"error": "Invalid token"}), 401
-    return jsonify({"user_id": payload["user_id"]})
+app.secret_key = os.environ.get("SECRET_KEY", "super-secret-key")
 
 # Только если сайт на HTTPS
 app.config['SESSION_COOKIE_SECURE'] = True
@@ -673,10 +602,14 @@ def telegram_auth():
                 "language_code": user_data['language_code']
             }
         })
-        
+
+
+
     except Exception as e:
         logger.exception("Ошибка авторизации через Telegram: %s", e)
         return jsonify({"error": "Внутренняя ошибка сервера"}), 500
+
+
 
 @app.route("/auth/logout", methods=["POST"])
 @require_user_auth
@@ -1258,6 +1191,75 @@ def start_background_tasks():
     t = threading.Thread(target=subscription_loop, daemon=True)
     t.start()
     logger.info("Subscription checker started")
+
+
+import logging
+from flask import request, jsonify
+
+# Настрой логирование
+logging.basicConfig(level=logging.INFO)
+
+
+@app.route("/auth/telegram", methods=["POST"])
+def telegram_auth():
+    """Авторизация через Telegram Web App с логированием"""
+    try:
+        data = request.json or {}
+        logging.info(f"Полученные данные запроса: {data}")
+
+        init_data = data.get("init_data")
+        if not init_data:
+            logging.warning("init_data отсутствует в запросе")
+            return jsonify({"error": "Данные Telegram не предоставлены"}), 400
+
+        if not TELEGRAM_BOT_TOKEN:
+            logging.error("TELEGRAM_BOT_TOKEN не настроен")
+            return jsonify({"error": "Telegram Bot не настроен"}), 500
+
+        # Валидация данных от Telegram
+        is_valid = user_manager.validate_telegram_data(init_data, TELEGRAM_BOT_TOKEN)
+        logging.info(f"Результат валидации init_data: {is_valid}")
+        if not is_valid:
+            logging.warning("Недействительные данные от Telegram")
+            return jsonify({"error": "Недействительные данные от Telegram"}), 400
+
+        # Парсинг данных пользователя
+        telegram_user = user_manager.parse_telegram_user_data(init_data)
+        logging.info(f"Распарсенные данные пользователя: {telegram_user}")
+        if not telegram_user:
+            logging.warning("Не удалось получить данные пользователя")
+            return jsonify({"error": "Не удалось получить данные пользователя"}), 400
+
+        # Получение или создание пользователя
+        user_data = user_manager.get_or_create_telegram_user(telegram_user)
+        logging.info(f"Данные пользователя после get_or_create: {user_data}")
+        if not user_data:
+            logging.error("Ошибка создания пользователя")
+            return jsonify({"error": "Ошибка создания пользователя"}), 500
+
+        # Создание JWT токена
+        token = user_manager.create_jwt_token(user_data['id'])
+        logging.info(f"Сгенерированный JWT токен: {token}")
+        if not token:
+            logging.error("Ошибка создания токена")
+            return jsonify({"error": "Ошибка создания токена"}), 500
+
+        response = {
+            "token": token,
+            "user": {
+                "id": user_data['id'],
+                "username": user_data['username'],
+                "first_name": user_data['first_name'],
+                "last_name": user_data['last_name'],
+                "language_code": user_data['language_code']
+            }
+        }
+        logging.info(f"Успешный ответ: {response}")
+        return jsonify(response)
+
+    except Exception as e:
+        logging.exception("Ошибка при авторизации через Telegram")
+        return jsonify({"error": str(e)}), 500
 
 
 # ProxyFix if behind nginx
