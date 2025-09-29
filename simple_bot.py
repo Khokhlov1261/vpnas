@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Простой Telegram Bot для SecureLink VPN на aiogram 3
+SecureLink VPN Telegram Bot на Flask с webhook
 """
 import os
 import logging
-import asyncio
-import psycopg2
 import secrets
 from datetime import datetime
+from flask import Flask, request, jsonify
 
+import psycopg2
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.filters import Command
 from dotenv import load_dotenv
 
-load_dotenv()  # загружает переменные из .env
+load_dotenv()
 
 # -------------------- Логирование --------------------
 logging.basicConfig(
@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 # -------------------- Конфигурация --------------------
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru/dashboard")
+WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", f"https://yourdomain.com{WEBHOOK_PATH}")
 
 PLANS = {
     9: {"name": "3 дня", "price": 0, "days": 3, "emoji": "🆓"},
@@ -65,7 +67,6 @@ def create_user(telegram_id, username, first_name, last_name, language_code):
         conn.close()
         return user_id
 
-    # Создаём токен при первом добавлении
     token = secrets.token_urlsafe(32)
     cursor.execute("""
         INSERT INTO users (telegram_id, username, first_name, last_name, language_code, created_at, last_login, dashboard_token)
@@ -95,7 +96,6 @@ dp = Dispatcher()
 # -------------------- Клавиатуры --------------------
 def main_keyboard(user_id):
     token = get_user_token(user_id)
-    # Всегда ведёт на /dashboard
     url = f"{WEB_APP_URL}/dashboard"
     if token:
         url += f"?token={token}"
@@ -190,7 +190,6 @@ async def my_account(callback: types.CallbackQuery):
     user = callback.from_user
     user_id = create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
     token = get_user_token(user_id)
-    # Всегда ведёт на /dashboard
     url = f"{WEB_APP_URL}/dashboard"
     if token:
         url += f"?token={token}"
@@ -219,13 +218,23 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Главное меню:", reply_markup=main_keyboard(user_id))
     await callback.answer()
 
-# -------------------- Запуск бота --------------------
-async def main():
-    logger.info("Starting SecureLink Telegram Bot...")
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
+# -------------------- Flask приложение --------------------
+app = Flask(__name__)
 
+@app.route(WEBHOOK_PATH, methods=["POST"])
+async def telegram_webhook():
+    data = await request.get_json()
+    update = types.Update(**data)
+    await dp.process_update(update)
+    return jsonify({"status": "ok"})
+
+# -------------------- Настройка webhook --------------------
+async def set_webhook():
+    await bot.set_webhook(WEBHOOK_URL)
+    logger.info(f"Webhook установлен: {WEBHOOK_URL}")
+
+# -------------------- Запуск Flask --------------------
 if __name__ == "__main__":
-    asyncio.run(main())
+    import asyncio
+    asyncio.run(set_webhook())
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
