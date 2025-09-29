@@ -603,13 +603,9 @@ def telegram_auth():
             }
         })
 
-
-
     except Exception as e:
         logger.exception("Ошибка авторизации через Telegram: %s", e)
         return jsonify({"error": "Внутренняя ошибка сервера"}), 500
-
-
 
 @app.route("/auth/logout", methods=["POST"])
 @require_user_auth
@@ -1191,75 +1187,6 @@ def start_background_tasks():
     t = threading.Thread(target=subscription_loop, daemon=True)
     t.start()
     logger.info("Subscription checker started")
-
-
-import logging
-from flask import request, jsonify
-
-# Настрой логирование
-logging.basicConfig(level=logging.INFO)
-
-
-@app.route("/auth/telegram", methods=["POST"])
-def telegram_auth():
-    """Авторизация через Telegram Web App с логированием"""
-    try:
-        data = request.json or {}
-        logging.info(f"Полученные данные запроса: {data}")
-
-        init_data = data.get("init_data")
-        if not init_data:
-            logging.warning("init_data отсутствует в запросе")
-            return jsonify({"error": "Данные Telegram не предоставлены"}), 400
-
-        if not TELEGRAM_BOT_TOKEN:
-            logging.error("TELEGRAM_BOT_TOKEN не настроен")
-            return jsonify({"error": "Telegram Bot не настроен"}), 500
-
-        # Валидация данных от Telegram
-        is_valid = user_manager.validate_telegram_data(init_data, TELEGRAM_BOT_TOKEN)
-        logging.info(f"Результат валидации init_data: {is_valid}")
-        if not is_valid:
-            logging.warning("Недействительные данные от Telegram")
-            return jsonify({"error": "Недействительные данные от Telegram"}), 400
-
-        # Парсинг данных пользователя
-        telegram_user = user_manager.parse_telegram_user_data(init_data)
-        logging.info(f"Распарсенные данные пользователя: {telegram_user}")
-        if not telegram_user:
-            logging.warning("Не удалось получить данные пользователя")
-            return jsonify({"error": "Не удалось получить данные пользователя"}), 400
-
-        # Получение или создание пользователя
-        user_data = user_manager.get_or_create_telegram_user(telegram_user)
-        logging.info(f"Данные пользователя после get_or_create: {user_data}")
-        if not user_data:
-            logging.error("Ошибка создания пользователя")
-            return jsonify({"error": "Ошибка создания пользователя"}), 500
-
-        # Создание JWT токена
-        token = user_manager.create_jwt_token(user_data['id'])
-        logging.info(f"Сгенерированный JWT токен: {token}")
-        if not token:
-            logging.error("Ошибка создания токена")
-            return jsonify({"error": "Ошибка создания токена"}), 500
-
-        response = {
-            "token": token,
-            "user": {
-                "id": user_data['id'],
-                "username": user_data['username'],
-                "first_name": user_data['first_name'],
-                "last_name": user_data['last_name'],
-                "language_code": user_data['language_code']
-            }
-        }
-        logging.info(f"Успешный ответ: {response}")
-        return jsonify(response)
-
-    except Exception as e:
-        logging.exception("Ошибка при авторизации через Telegram")
-        return jsonify({"error": str(e)}), 500
 
 
 # ProxyFix if behind nginx
