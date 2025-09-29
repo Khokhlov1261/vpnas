@@ -91,7 +91,7 @@ def get_main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
         [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
-        [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
         [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
 
