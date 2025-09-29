@@ -35,19 +35,6 @@ from user_manager import UserManager
 from dotenv import load_dotenv
 import os
 
-
-
-from flask_login import LoginManager, login_required, current_user
-
-
-
-
-
-
-
-
-
-
 load_dotenv()  # это заставит Python читать .env
 # ---------------------------
 # CONFIG
@@ -452,13 +439,6 @@ def create_order_internal(email: str, plan_id: int, user_id: int = None, telegra
 app = Flask(__name__)
 app.config["CONF_DIR"] = CONF_DIR
 
-app.secret_key = "uisdvh(uisdyv-sdjvsdjv12312-sdm)nbm.jdjd-hjshq"
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "index"  # куда редиректить неавторизованных
-
-
 # ProxyFix if behind nginx
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
@@ -551,11 +531,9 @@ def index():
     return render_template("index.html")
 
 @app.route("/dashboard")
-@login_required  # автоматически проверяет авторизацию
 def dashboard():
-    # Здесь current_user точно авторизован
-    return render_template("dashboard.html", user=current_user)
-
+    """Личный кабинет пользователя"""
+    return render_template("dashboard.html")
 
 @app.route("/demo")
 def telegram_demo():
@@ -1198,106 +1176,6 @@ def start_background_tasks():
     t = threading.Thread(target=subscription_loop, daemon=True)
     t.start()
     logger.info("Subscription checker started")
-
-
-# ==============================
-# TELEGRAM AUTH ROUTES
-# ==============================
-
-@app.route("/auth/telegram", methods=["POST"])
-def telegram_auth():
-    """Авторизация через Telegram Web App"""
-    try:
-        data = request.json or {}
-        init_data = data.get("init_data")
-
-        if not init_data:
-            return jsonify({"error": "Данные Telegram не предоставлены"}), 400
-
-        if not TELEGRAM_BOT_TOKEN:
-            return jsonify({"error": "Telegram Bot не настроен"}), 500
-
-        # Валидация данных от Telegram
-        if not user_manager.validate_telegram_data(init_data, TELEGRAM_BOT_TOKEN):
-            return jsonify({"error": "Недействительные данные от Telegram"}), 400
-
-        # Парсинг данных пользователя
-        telegram_user = user_manager.parse_telegram_user_data(init_data)
-        if not telegram_user:
-            return jsonify({"error": "Не удалось получить данные пользователя"}), 400
-
-        # Получение или создание пользователя
-        user_data = user_manager.get_or_create_telegram_user(telegram_user)
-        if not user_data:
-            return jsonify({"error": "Ошибка создания пользователя"}), 500
-
-        # Создание JWT токена
-        token = user_manager.create_jwt_token(user_data['id'])
-        if not token:
-            return jsonify({"error": "Ошибка создания токена"}), 500
-
-        return jsonify({
-            "token": token,
-            "user": {
-                "id": user_data['id'],
-                "username": user_data['username'],
-                "first_name": user_data['first_name'],
-                "last_name": user_data['last_name'],
-                "language_code": user_data['language_code']
-            }
-        })
-
-    except Exception as e:
-        logger.exception("Ошибка авторизации через Telegram: %s", e)
-        return jsonify({"error": "Внутренняя ошибка сервера"}), 500
-
-
-@app.route("/auth/logout", methods=["POST"])
-@require_user_auth
-def logout():
-    """Выход из системы"""
-    try:
-        auth_header = request.headers.get('Authorization')
-        token = auth_header.split(' ')[1]
-
-        if user_manager.revoke_user_session(token):
-            return jsonify({"message": "Успешный выход из системы"})
-        else:
-            return jsonify({"error": "Ошибка выхода из системы"}), 500
-
-    except Exception as e:
-        logger.exception("Ошибка выхода: %s", e)
-        return jsonify({"error": "Внутренняя ошибка сервера"}), 500
-
-
-@app.route("/auth/me", methods=["GET"])
-@require_user_auth
-def get_current_user():
-    """Получение данных текущего пользователя"""
-    try:
-        user_id = get_current_user_id()
-        user_data = user_manager.get_user_by_id(user_id)
-
-        if not user_data:
-            return jsonify({"error": "Пользователь не найден"}), 404
-
-        return jsonify({
-            "user": {
-                "id": user_data['id'],
-                "username": user_data['username'],
-                "first_name": user_data['first_name'],
-                "last_name": user_data['last_name'],
-                "email": user_data['email'],
-                "language_code": user_data['language_code'],
-                "created_at": user_data['created_at'],
-                "last_login": user_data['last_login'],
-                "settings": user_data['settings']
-            }
-        })
-
-    except Exception as e:
-        logger.exception("Ошибка получения данных пользователя: %s", e)
-        return jsonify({"error": "Внутренняя ошибка сервера"}), 500
 
 
 # ProxyFix if behind nginx
