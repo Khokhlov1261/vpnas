@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # -------------------- Конфигурация --------------------
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru")
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru/dashboard")
 
 PLANS = {
     9: {"name": "3 дня", "price": 0, "days": 3, "emoji": "🆓"},
