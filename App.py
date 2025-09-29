@@ -35,6 +35,19 @@ from user_manager import UserManager
 from dotenv import load_dotenv
 import os
 
+
+from flask import Flask, render_template, redirect, url_for
+from flask_login import LoginManager, login_required, current_user
+
+
+app = Flask(__name__)
+app.secret_key = "uisdvh(uisdyv-sdjvsdjv12312-sdm)nbm.jdjd-hjshq"
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "index"  # куда редиректить неавторизованных
+
+
 load_dotenv()  # это заставит Python читать .env
 # ---------------------------
 # CONFIG
@@ -531,9 +544,11 @@ def index():
     return render_template("index.html")
 
 @app.route("/dashboard")
+@login_required  # автоматически проверяет авторизацию
 def dashboard():
-    """Личный кабинет пользователя"""
-    return render_template("dashboard.html")
+    # Здесь current_user точно авторизован
+    return render_template("dashboard.html", user=current_user)
+
 
 @app.route("/demo")
 def telegram_demo():
