@@ -443,13 +443,6 @@ app.config["CONF_DIR"] = CONF_DIR
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
-app.secret_key = os.environ.get("SECRET_KEY", "super-secret-key")
-
-# Только если сайт на HTTPS
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_HTTPONLY'] = True  # защита от JS
-
 # Helper: send email with conf attachment
 def send_conf_email(to_email, conf_path, expires_at=None):
     try:
@@ -537,13 +530,9 @@ def get_current_user_id():
 def index():
     return render_template("index.html")
 
-from flask import Flask, session, redirect, url_for, render_template
-
 @app.route("/dashboard")
 def dashboard():
-    if not session.get("user_id"):
-        print("No session!")  # для логов
-        return redirect(url_for("index"))  # <- это кидает на главную
+    """Личный кабинет пользователя"""
     return render_template("dashboard.html")
 
 @app.route("/demo")
