@@ -1,5 +1,3 @@
-#BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-
 #!/usr/bin/env python3
 """
 Простой Telegram Bot для SecureLink VPN на aiogram 3
@@ -97,7 +95,10 @@ dp = Dispatcher()
 # -------------------- Клавиатуры --------------------
 def main_keyboard(user_id):
     token = get_user_token(user_id)
-    url = f"{WEB_APP_URL}/dashboard?token={token}" if token else WEB_APP_URL
+    # Всегда ведёт на /dashboard
+    url = f"{WEB_APP_URL}/dashboard"
+    if token:
+        url += f"?token={token}"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
         [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
@@ -189,7 +190,10 @@ async def my_account(callback: types.CallbackQuery):
     user = callback.from_user
     user_id = create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
     token = get_user_token(user_id)
-    url = f"{WEB_APP_URL}/dashboard?token={token}" if token else WEB_APP_URL
+    # Всегда ведёт на /dashboard
+    url = f"{WEB_APP_URL}/dashboard"
+    if token:
+        url += f"?token={token}"
     text = f"""
 👤 <b>Мой аккаунт</b>
 
@@ -225,4 +229,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
