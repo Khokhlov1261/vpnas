@@ -8,6 +8,7 @@ import json
 import base64
 import qrcode
 
+
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
 from dateutil.relativedelta import relativedelta
@@ -34,6 +35,7 @@ from user_manager import UserManager
 
 from dotenv import load_dotenv
 import os
+
 
 load_dotenv()  # это заставит Python читать .env
 # ---------------------------
@@ -443,7 +445,76 @@ app.config["CONF_DIR"] = CONF_DIR
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
-app.secret_key = os.environ.get("SECRET_KEY", "super-secret-key")
+app.secret_key = "skdjvksdjvksdjvlksdjvksdnv"
+
+JWT_SECRET = "another-super-secret"  # для токенов
+JWT_ALGORITHM = "HS256"
+
+# ---------------------------
+# Вспомогательные функции
+# ---------------------------
+def generate_jwt(user_id):
+    payload = {
+        "user_id": user_id,
+        "exp": datetime.utcnow() + timedelta(hours=2)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def decode_jwt(token):
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except:
+        return None
+
+# ---------------------------
+# Телеграм авторизация
+# ---------------------------
+@app.route("/auth/telegram", methods=["POST"])
+def telegram_auth():
+    data = request.json
+    # пример: получаем user_id от Telegram
+    user_id = data.get("id")
+    if not user_id:
+        return jsonify({"error": "No user ID"}), 400
+
+    # создаём JWT
+    token = generate_jwt(user_id)
+
+    # сохраняем в session
+    session["user_id"] = user_id
+    session["jwt"] = token
+
+    return jsonify({
+        "token": token,
+        "message": "Авторизация успешна"
+    })
+
+# ---------------------------
+# Личный кабинет
+# ---------------------------
+@app.route("/dashboard")
+def dashboard():
+    if not session.get("user_id"):
+        return redirect(url_for("index"))
+    return render_template("dashboard.html", user_id=session["user_id"])
+
+# ---------------------------
+# Главная страница
+# ---------------------------
+@app.route("/")
+def index():
+    return "Главная страница. Войдите через Telegram."
+
+# ---------------------------
+# Пример API с JWT
+# ---------------------------
+@app.route("/api/user")
+def api_user():
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    payload = decode_jwt(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+    return jsonify({"user_id": payload["user_id"]})
 
 # Только если сайт на HTTPS
 app.config['SESSION_COOKIE_SECURE'] = True
