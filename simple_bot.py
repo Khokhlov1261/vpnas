@@ -9,7 +9,7 @@ import psycopg2
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
 from dotenv import load_dotenv
 
@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфигурация
-BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru")
 
 # Тарифы
@@ -100,8 +100,17 @@ def get_plans_keyboard():
     for plan_id, plan in PLANS.items():
         button_text = f"{plan['emoji']} {plan['name']} - {plan['price']} ₽"
         keyboard.append([InlineKeyboardButton(text=button_text, callback_data=f"plan_{plan_id}")])
-    keyboard.append([InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))])
+    # Кнопка личного кабинета + назад к главному меню
+    keyboard.append([InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")])
+    keyboard.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_my_account_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="start")]
+    ])
 
 # -------------------- Хэндлеры --------------------
 @dp.message(Command("start"))
@@ -178,7 +187,8 @@ async def plan_details(callback: types.CallbackQuery):
     """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Оплатить", callback_data=f"pay_{plan_id}")],
-        [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="show_plans")]
+        [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="show_plans")],
+        [InlineKeyboardButton(text="🔙 Назад в главное меню", callback_data="start")]
     ])
     await callback.message.edit_text(plan_text, reply_markup=keyboard)
     await callback.answer()
@@ -196,7 +206,11 @@ async def create_payment(callback: types.CallbackQuery):
     else:
         text = f"💳 Оплата тарифа {plan['name']}\n<b>Сумма:</b> {plan['price']} ₽\n<b>Срок:</b> {plan['days']} дней\n\nДля оплаты перейдите в личный кабинет: {WEB_APP_URL}/dashboard"
 
-    await callback.message.edit_text(text)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Личный кабинет", url=f"{WEB_APP_URL}/dashboard")],
+        [InlineKeyboardButton(text="🔙 Назад в главное меню", callback_data="start")]
+    ])
+    await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "my_account")
@@ -212,11 +226,7 @@ async def my_account(callback: types.CallbackQuery):
 <b>Статус:</b> ✅ Активен
 <b>Дата регистрации:</b> {datetime.now().strftime('%d.%m.%Y')}
 """
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=f"{WEB_APP_URL}/dashboard"))]
-    ])
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.message.edit_text(text, reply_markup=get_my_account_keyboard())
     await callback.answer()
 
 # -------------------- Запуск бота --------------------
