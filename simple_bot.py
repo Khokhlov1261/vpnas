@@ -1,3 +1,6 @@
+#BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
+
+
 #!/usr/bin/env python3
 """
 Простой Telegram Bot для SecureLink VPN на aiogram 3
@@ -24,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфигурация
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru")
 
 # Тарифы
