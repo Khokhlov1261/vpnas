@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 import os
 
 
-from flask import Flask, render_template, redirect, url_for
+
 from flask_login import LoginManager, login_required, current_user
 
 
