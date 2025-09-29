@@ -537,9 +537,13 @@ def get_current_user_id():
 def index():
     return render_template("index.html")
 
+from flask import Flask, session, redirect, url_for, render_template
+
 @app.route("/dashboard")
 def dashboard():
-    """Личный кабинет пользователя"""
+    if not session.get("user_id"):
+        print("No session!")  # для логов
+        return redirect(url_for("index"))  # <- это кидает на главную
     return render_template("dashboard.html")
 
 @app.route("/demo")
