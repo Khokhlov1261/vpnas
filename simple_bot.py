@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru/dashboard")
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", f"https://yourdomain.com{WEBHOOK_PATH}")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", f"https://truesocial.ru{WEBHOOK_PATH}")
 
 PLANS = {
     9: {"name": "3 дня", "price": 0, "days": 3, "emoji": "🆓"},
