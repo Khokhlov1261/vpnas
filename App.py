@@ -443,6 +443,13 @@ app.config["CONF_DIR"] = CONF_DIR
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
+app.secret_key = os.environ.get("SECRET_KEY", "super-secret-key")
+
+# Только если сайт на HTTPS
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # защита от JS
+
 # Helper: send email with conf attachment
 def send_conf_email(to_email, conf_path, expires_at=None):
     try:
