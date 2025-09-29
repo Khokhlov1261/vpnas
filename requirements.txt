@@ -3,3 +3,4 @@ gunicorn==23.0.0
 psycopg2-binary==2.9.9
 aiogram==3.5.2
 requests==2.31.0
+flask-login
