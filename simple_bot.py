@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация
 BOT_TOKEN = "8271035383:AAHTbW40nfLzucEU7ZYWQziGv16kDx4ph5o"
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://secure-link.ru")
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru")
 
 # Тарифы
 PLANS = {
