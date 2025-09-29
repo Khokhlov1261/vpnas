@@ -1178,6 +1178,78 @@ def start_background_tasks():
     logger.info("Subscription checker started")
 
 
+# ---------------------------
+# TELEGRAM BOT (aiogram 3)
+# ---------------------------
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+if TELEGRAM_BOT_TOKEN:
+    tg_bot = Bot(token=TELEGRAM_BOT_TOKEN, parse_mode="HTML")
+    dp = Dispatcher()
+
+    async def start_handler(message: types.Message):
+        """Обработчик команды /start"""
+        user_id = message.from_user.id
+        username = message.from_user.username or message.from_user.full_name
+        text = f"Привет, <b>{username}</b>!\nЯ могу помочь тебе управлять подпиской SecureLink VPN.\n\n" \
+               f"Доступные команды:\n" \
+               f"/status - проверить статус подписки\n" \
+               f"/plans - показать доступные тарифы"
+        await message.answer(text)
+
+    async def status_handler(message: types.Message):
+        """Проверка статуса подписки через email (Telegram user email должен быть привязан)"""
+        email = message.from_user.username  # Можно заменить на хранение email в БД
+        if not email:
+            await message.answer("Не удалось определить email. Используй веб-сайт для авторизации.")
+            return
+
+        import requests
+        try:
+            r = requests.post(f"http://{APP_HOST}:{APP_PORT}/check-subscription", json={"email": email})
+            data = r.json()
+            status = data.get("status", "неизвестно")
+            expires = data.get("expires_at")
+            await message.answer(f"Статус подписки: <b>{status}</b>\nИстекает: {expires}")
+        except Exception as e:
+            await message.answer(f"Ошибка при проверке подписки: {e}")
+
+    async def plans_handler(message: types.Message):
+        """Список тарифов"""
+        buttons = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"{name} — {price}₽", callback_data=f"buy_{plan_id}")]
+            for plan_id, (name, price, _) in PLANS.items()
+        ])
+        await message.answer("Доступные тарифы:", reply_markup=buttons)
+
+    async def buy_callback_handler(callback: types.CallbackQuery):
+        """Обработка покупки через inline-кнопки"""
+        plan_id = int(callback.data.split("_")[1])
+        # Для демо просто отправляем ссылку на оплату
+        url = f"http://secure-link.ru/create-payment?plan_id={plan_id}&email={callback.from_user.username}"
+        await callback.message.answer(f"Перейди по ссылке для оплаты: {url}")
+        await callback.answer()  # чтобы убрать "часики" на кнопке
+
+    dp.message.register(start_handler, Command(commands=["start"]))
+    dp.message.register(status_handler, Command(commands=["status"]))
+    dp.message.register(plans_handler, Command(commands=["plans"]))
+    dp.callback_query.register(buy_callback_handler, lambda c: c.data.startswith("buy_"))
+
+    async def run_bot():
+        logger.info("Starting Telegram bot...")
+        await dp.start_polling(tg_bot)
+
+    # Запуск бота в отдельном потоке
+    import threading
+    threading.Thread(target=lambda: asyncio.run(run_bot()), daemon=True).start()
+else:
+    logger.warning("TELEGRAM_BOT_TOKEN не задан, бот не запущен")
+
+
 # ProxyFix if behind nginx
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
