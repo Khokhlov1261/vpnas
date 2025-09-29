@@ -53,22 +53,26 @@ class DashboardApp {
             console.log('Telegram Web App initialized:', this.telegramWebApp.initDataUnsafe);
         }
     }
-    
     async checkAuth() {
-        // Проверяем токен в localStorage
-        this.authToken = localStorage.getItem('authToken');
-        
-        if (this.authToken) {
-            try {
-                const response = await this.apiCall('/auth/me');
-                if (response.ok) {
-                    this.currentUser = response.user;
-                    return;
-                }
-            } catch (error) {
-                console.error('Ошибка проверки токена:', error);
-            }
+    this.authToken = localStorage.getItem('authToken');  // 1. Сначала проверяем локальный токен
+
+    if (this.authToken) {
+        try {
+            const response = await this.apiCall('/auth/me'); // 2. Проверяем токен на сервере
+            this.currentUser = response.user;               // 3. Если токен валидный, сохраняем пользователя
+            return;
+        } catch {
+            localStorage.removeItem('authToken');          // 4. Если токен невалидный, удаляем
         }
+    }
+
+    // 5. Если токена нет или он невалидный, проверяем данные Telegram
+    if (this.telegramWebApp?.initDataUnsafe?.user) {
+        await this.authenticateWithTelegram();            // 6. Авторизация через Telegram
+    } else {
+        window.location.href = '/';                       // 7. Если нет ничего — редирект на главную
+    }
+}
         
         // Если нет токена или он недействителен, пробуем авторизацию через Telegram
         if (this.telegramWebApp?.initDataUnsafe?.user) {
