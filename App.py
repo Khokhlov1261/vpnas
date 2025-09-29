@@ -43,9 +43,6 @@ from flask_login import LoginManager, login_required, current_user
 
 
 
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "index"  # куда редиректить неавторизованных
 
 
 
@@ -456,6 +453,11 @@ app = Flask(__name__)
 app.config["CONF_DIR"] = CONF_DIR
 
 app.secret_key = "uisdvh(uisdyv-sdjvsdjv12312-sdm)nbm.jdjd-hjshq"
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "index"  # куда редиректить неавторизованных
+
 
 # ProxyFix if behind nginx
 from werkzeug.middleware.proxy_fix import ProxyFix
