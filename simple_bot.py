@@ -130,20 +130,19 @@ def main_keyboard(user_id):
     url = f"{WEB_APP_URL}/dashboard"
     if token:
         url += f"?token={token}"
-
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
-            [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
-            [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
-            [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
-        ]
-    )
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
+        [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
+    ])
 
 def plans_keyboard():
     buttons = [
-        [InlineKeyboardButton(text=f"{plan['emoji']} {plan['name']} - {plan['price']} ₽",
-                              callback_data=f"plan_{plan_id}")]
+        [InlineKeyboardButton(
+            text=f"{plan['emoji']} {plan['name']} - {plan['price']} ₽",
+            callback_data=f"plan_{plan_id}"
+        )]
         for plan_id, plan in PLANS_UI.items()
     ]
     buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")])
@@ -151,8 +150,8 @@ def plans_keyboard():
 
 def plan_detail_keyboard(plan_id):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💳 Оплатить", callback_data=f"pay_{plan_id}")],
-        [InlineKeyboardButton("🔙 Назад к тарифам", callback_data="show_plans")]
+        [InlineKeyboardButton(text="💳 Оплатить", callback_data=f"pay_{plan_id}")],
+        [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="show_plans")]
     ])
 
 # -------------------- Хэндлеры --------------------
@@ -177,13 +176,14 @@ async def help_command(message: types.Message):
         "/help - Эта справка"
     )
 
-# Показ тарифов
 @dp.callback_query(lambda c: c.data == "show_plans")
 async def show_plans_callback(callback: types.CallbackQuery):
-    await callback.message.edit_text("💰 <b>Тарифы SecureLink VPN</b>\n\nВыберите тариф:", reply_markup=plans_keyboard())
+    await callback.message.edit_text(
+        "💰 <b>Тарифы SecureLink VPN</b>\n\nВыберите тариф:",
+        reply_markup=plans_keyboard()
+    )
     await callback.answer()
 
-# Детали тарифа
 @dp.callback_query(lambda c: c.data.startswith("plan_"))
 async def plan_details(callback: types.CallbackQuery):
     plan_id = int(callback.data.split("_")[1])
@@ -203,7 +203,6 @@ async def plan_details(callback: types.CallbackQuery):
     await callback.message.edit_text(text, reply_markup=plan_detail_keyboard(plan_id))
     await callback.answer()
 
-# Оплата тарифа
 @dp.callback_query(lambda c: c.data.startswith("pay_"))
 async def pay_plan(callback: types.CallbackQuery):
     plan_id = int(callback.data.split("_")[1])
@@ -212,21 +211,22 @@ async def pay_plan(callback: types.CallbackQuery):
         await callback.answer("Неверный тариф", show_alert=True)
         return
     if plan['price'] == 0:
-        await callback.message.edit_text(f"🎉 Бесплатный тариф '{plan['name']}' активирован!",
-                                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("🔙 Назад", callback_data="show_plans")]]))
+        await callback.message.edit_text(
+            f"🎉 Бесплатный тариф '{plan['name']}' активирован!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="show_plans")]])
+        )
         await callback.answer()
         return
 
     PAYMENT_STATE[callback.from_user.id] = {"plan_id": plan_id, "awaiting_contact": True}
     kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton("📱 Поделиться номером", request_contact=True)]],
+        keyboard=[[KeyboardButton(text="📱 Поделиться номером", request_contact=True)]],
         resize_keyboard=True,
         one_time_keyboard=True
     )
     await callback.message.answer("Поделитесь вашим номером телефона для оплаты:", reply_markup=kb)
     await callback.answer()
 
-# Обработка контакта
 @dp.message(lambda m: m.contact is not None)
 async def handle_contact(message: types.Message):
     state = PAYMENT_STATE.get(message.from_user.id)
@@ -236,7 +236,6 @@ async def handle_contact(message: types.Message):
     plan_id = state["plan_id"]
     await message.delete()
     await message.answer(" ", reply_markup=ReplyKeyboardRemove())
-    # Отправка на backend
     try:
         requests.post(f"{BACKEND_URL}/bot/link-phone", json={"phone": phone, "telegram_id": message.from_user.id}, timeout=10)
         resp = requests.post(f"{BACKEND_URL}/create-payment", json={"email": phone, "plan_id": plan_id}, timeout=20)
@@ -244,20 +243,19 @@ async def handle_contact(message: types.Message):
         url = data.get("confirmation_url") if data else None
         if not url:
             raise RuntimeError(f"Backend error: {resp.status_code} {resp.text}")
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("Перейти к оплате", url=url)]])
-        msg = await message.answer("Перейдите по ссылке для оплаты:", reply_markup=kb)
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Перейти к оплате", url=url)]])
+        await message.answer("Перейдите по ссылке для оплаты:", reply_markup=kb)
         state.update({"awaiting_contact": False, "phone": phone})
     except Exception as e:
         logger.error(f"Payment create error: {e}")
         await message.answer("Не удалось создать платёж. Попробуйте позже.")
 
-# Мой аккаунт
 @dp.callback_query(lambda c: c.data == "my_account")
 async def my_account(callback: types.CallbackQuery):
     user = callback.from_user
     user_id = create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
-    url = f"{WEB_APP_URL}/dashboard"
     token = get_user_token(user_id)
+    url = f"{WEB_APP_URL}/dashboard"
     if token:
         url += f"?token={token}"
     text = f"""
@@ -270,9 +268,9 @@ async def my_account(callback: types.CallbackQuery):
 <b>Дата регистрации:</b> {datetime.now().strftime('%d.%m.%Y')}
 """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")]
+        [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+        [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")]
     ])
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
@@ -283,7 +281,6 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Главное меню:", reply_markup=main_keyboard(user_id))
     await callback.answer()
 
-# Отправка конфигурации
 @dp.callback_query(lambda c: c.data == "get_config")
 async def send_config(callback: types.CallbackQuery):
     order = get_latest_paid_order_for_telegram(callback.from_user.id)
@@ -298,7 +295,6 @@ async def send_config(callback: types.CallbackQuery):
         logger.error(f"Failed to send config: {e}")
         await callback.answer("Ошибка отправки конфига", show_alert=True)
 
-# Отправка QR
 @dp.callback_query(lambda c: c.data == "get_qr")
 async def send_qr(callback: types.CallbackQuery):
     order = get_latest_paid_order_for_telegram(callback.from_user.id)
