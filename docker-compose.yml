@@ -26,7 +26,7 @@ services:
       PG_HOST: db
       PG_PORT: 5432
     ports:
-      - "9000:80"
+      - "9900:80"
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
