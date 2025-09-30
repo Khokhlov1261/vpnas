@@ -318,19 +318,38 @@ async def send_config(callback: types.CallbackQuery):
         logger.error(f"Failed to send config: {e}")
         await callback.answer("Ошибка отправки конфига", show_alert=True)
 
+from io import BytesIO
+import qrcode
+from aiogram.types import BufferedInputFile
+
 @dp.callback_query(lambda c: c.data == "get_qr")
 async def send_qr(callback: types.CallbackQuery):
     order = get_latest_paid_order_for_telegram(callback.from_user.id)
     if not order:
         await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
         return
+
     try:
-        with open(order["conf_file"], "r") as f:
-            buf = BytesIO()
-            qrcode.make(f.read()).save(buf, format="PNG")
-            buf.seek(0)
-            photo = BufferedInputFile(buf.read(), filename=f"securelink_{order['id']}.png")
-            await bot.send_photo(chat_id=callback.from_user.id, photo=photo, caption=f"QR для импорта конфига (тариф: {order['plan']})\n{INSTRUCTION_TEXT}")
+        # Строим путь к конфигу на основе order_id
+        conf_file_path = f"/securelink/SecureLink/configs/wg_{order['id']}.conf"
+
+        # Чтение конфигурационного файла
+        with open(conf_file_path, "r") as f:
+            config_content = f.read()
+
+        # Генерация QR-кода
+        buf = BytesIO()
+        qrcode.make(config_content).save(buf, format="PNG")
+        buf.seek(0)
+
+        # Добавляем префикс к имени файла
+        filename = f"securelink_{order['id']}.png"
+        photo = BufferedInputFile(buf.read(), filename=filename)
+
+        # Отправка QR-кода пользователю
+        caption = f"QR для импорта конфига (тариф: {order['plan']})\n{INSTRUCTION_TEXT}"
+        await bot.send_photo(chat_id=callback.from_user.id, photo=photo, caption=caption)
+
         await callback.answer("QR отправлен")
     except Exception as e:
         logger.error(f"Failed to send QR: {e}")
