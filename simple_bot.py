@@ -123,6 +123,69 @@ def plan_detail_keyboard(plan_id):
 # -------------------- Хэндлеры --------------------
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
+    # Обработка deep-link после оплаты: /start paid_<planId>_<phone>
+    args = message.text.split(maxsplit=1)
+    if len(args) == 2 and args[1].startswith("paid_"):
+        try:
+            rest = args[1][5:]
+            plan_id_str, phone = rest.split("_", 1)
+            _ = int(plan_id_str)
+        except Exception:
+            await message.answer("Спасибо за оплату! Откройте личный кабинет для скачивания конфига.")
+        else:
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                # Удаляем сохранённые сообщения с оплатой
+                try:
+                    cur.execute("SELECT message_ids FROM payment_messages WHERE telegram_id=%s ORDER BY id DESC LIMIT 1", (message.from_user.id,))
+                    r2 = cur.fetchone()
+                    if r2:
+                        ids = json.loads(r2[0])
+                        for mid in ids:
+                            try:
+                                await bot.delete_message(chat_id=message.chat.id, message_id=mid)
+                            except Exception:
+                                pass
+                        cur.execute("DELETE FROM payment_messages WHERE telegram_id=%s", (message.from_user.id,))
+                        conn.commit()
+                except Exception as e:
+                    logger.warning(f"delete payment message failed: {e}")
+                # Находим оплаченный конфиг по телефону
+                cur.execute(
+                    """
+                    SELECT id, conf_file, plan FROM orders
+                    WHERE email=%s AND status='paid' AND conf_file IS NOT NULL
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (phone,)
+                )
+                row = cur.fetchone()
+                conn.close()
+                if row and os.path.exists(row[1]):
+                    order_id, conf_file, plan_name = row
+                    try:
+                        # Отправляем .conf
+                        doc = FSInputFile(conf_file, filename=f"securelink_{order_id}.conf")
+                        await bot.send_document(chat_id=message.chat.id, document=doc, caption=f"Тариф: {plan_name}\n{INSTRUCTION_TEXT}")
+                        # QR
+                        with open(conf_file, 'r') as f:
+                            conf_text = f.read()
+                        buf = BytesIO()
+                        qrcode.make(conf_text).save(buf, format='PNG')
+                        buf.seek(0)
+                        photo = BufferedInputFile(buf.read(), filename=f"securelink_{order_id}.png")
+                        await bot.send_photo(chat_id=message.chat.id, photo=photo, caption="QR для импорта")
+                    except Exception as e:
+                        logger.error(f"send conf failed: {e}")
+                else:
+                    await message.answer("Оплата подтверждена. Конфиг появится в личном кабинете.")
+            except Exception as e:
+                logger.error(f"deeplink error: {e}")
+                await message.answer("Спасибо за оплату! Конфиг будет доступен в личном кабинете.")
+        return
+
+    # стандартный старт
     user = message.from_user
     user_id = create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
     welcome_text = f"""
