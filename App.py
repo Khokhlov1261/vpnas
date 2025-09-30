@@ -116,7 +116,11 @@ def init_db():
         expires_at TIMESTAMP WITH TIME ZONE,
         public_key TEXT,
         client_ip TEXT,
-        access_token TEXT
+        access_token TEXT,
+        user_id INTEGER,
+        telegram_id BIGINT,
+        payment_method VARCHAR(50) DEFAULT 'yookassa',
+        auto_renewal BOOLEAN DEFAULT FALSE
     );
     """
     with get_conn() as conn:
