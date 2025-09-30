@@ -141,7 +141,8 @@ async def start_command(message: types.Message):
                     cur.execute("SELECT message_ids FROM payment_messages WHERE telegram_id=%s ORDER BY id DESC LIMIT 1", (message.from_user.id,))
                     r2 = cur.fetchone()
                     if r2:
-                        ids = json.loads(r2[0])
+                        stored_ids = r2[0]
+                        ids = stored_ids if isinstance(stored_ids, list) else json.loads(stored_ids)
                         for mid in ids:
                             try:
                                 await bot.delete_message(chat_id=message.chat.id, message_id=mid)
@@ -176,6 +177,10 @@ async def start_command(message: types.Message):
                         buf.seek(0)
                         photo = BufferedInputFile(buf.read(), filename=f"securelink_{order_id}.png")
                         await bot.send_photo(chat_id=message.chat.id, photo=photo, caption="QR для импорта")
+                        # Сообщение об успехе и меню
+                        user = message.from_user
+                        user_id = create_user(user.id, user.username, user.first_name, user.last_name, user.language_code)
+                        await message.answer("✅ Оплата успешно завершена. Выберите действие ниже:", reply_markup=main_keyboard(user_id))
                     except Exception as e:
                         logger.error(f"send conf failed: {e}")
                 else:
