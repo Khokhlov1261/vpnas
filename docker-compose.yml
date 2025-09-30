@@ -26,7 +26,7 @@ services:
       PG_HOST: db
       PG_PORT: 5432
     ports:
-      - "9900:80"
+      - "9900:9000"  # 9900 на хосте будет проброшен на Gunicorn внутри контейнера
     cap_add:
       - NET_ADMIN
       - SYS_MODULE

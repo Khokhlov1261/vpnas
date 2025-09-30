@@ -20,7 +20,7 @@ if [ -f "/app/database_migration.sql" ]; then
 fi
 
 echo "[start] Launching Gunicorn (Flask app)"
-gunicorn -w 4 -b 0.0.0.0:9000 App:app &
+gunicorn -w 4 -b 0.0.0.0:9000 App:app
 
 echo "[start] Launching Nginx"
 nginx -g "daemon off;" &
