@@ -13,6 +13,7 @@ from dateutil.relativedelta import relativedelta
 from urllib.parse import quote, unquote
 from flask import Flask, request, jsonify, render_template, send_file, url_for, Response
 import psutil
+import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -272,6 +273,26 @@ def create_order_internal(email: str, plan_id: int, user_id: int = None, telegra
 # Flask app & routes
 # ---------------------------
 app = Flask(__name__)
+def send_telegram_doc_and_qr(bot_token: str, chat_id: int, conf_file: str, plan_name: str):
+    try:
+        api = f"https://api.telegram.org/bot{bot_token}"
+        caption = f"Тариф: {plan_name}\nИнструкция: установите WireGuard, импортируйте файл, включите."
+        # sendDocument
+        with open(conf_file, 'rb') as f:
+            files = {"document": (os.path.basename(conf_file), f, "text/plain")}
+            data = {"chat_id": str(chat_id), "caption": caption}
+            requests.post(f"{api}/sendDocument", data=data, files=files, timeout=20)
+        # sendPhoto (QR)
+        with open(conf_file, 'r') as f:
+            conf_text = f.read()
+        buf = BytesIO()
+        qrcode.make(conf_text).save(buf, "PNG")
+        buf.seek(0)
+        files = {"photo": (f"securelink_{chat_id}.png", buf, "image/png")}
+        data = {"chat_id": str(chat_id), "caption": "QR для импорта"}
+        requests.post(f"{api}/sendPhoto", data=data, files=files, timeout=20)
+    except Exception:
+        logger.exception("Failed to send to Telegram via HTTP API")
 app.config["CONF_DIR"] = CONF_DIR
 
 # ProxyFix if behind nginx
@@ -830,29 +851,11 @@ def yookassa_webhook():
                                 row = cur.fetchone()
                                 if row:
                                     order_id, conf_file, telegram_id, plan_name = row
-                                    if telegram_id and conf_file and os.path.exists(conf_file):
-                                        try:
-                                            import asyncio
-                                            from aiogram import Bot
-                                            from aiogram.types import FSInputFile
-                                            bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
-                                            if bot_token:
-                                                async def _send():
-                                                    bot = Bot(token=bot_token)
-                                                    caption = f"Тариф: {plan_name}\nИнструкция: установите WireGuard, импортируйте файл, включите."
-                                                    await bot.send_document(chat_id=int(telegram_id), document=FSInputFile(conf_file, filename=f"securelink_{order_id}.conf"), caption=caption)
-                                                    # QR
-                                                    with open(conf_file, 'r') as f:
-                                                        conf_text = f.read()
-                                                    buf = BytesIO()
-                                                    qrcode.make(conf_text).save(buf, "PNG")
-                                                    buf.seek(0)
-                                                    from aiogram.types import BufferedInputFile
-                                                    await bot.send_photo(chat_id=int(telegram_id), photo=BufferedInputFile(buf.read(), filename=f"securelink_{order_id}.png"), caption="QR для импорта")
-                                                    await bot.session.close()
-                                                asyncio.get_event_loop().create_task(_send())
-                                        except Exception:
-                                            logger.exception("Failed to auto-send config to Telegram")
+                                    bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+                                    if bot_token and telegram_id and conf_file and os.path.exists(conf_file):
+                                        send_telegram_doc_and_qr(bot_token, int(telegram_id), conf_file, plan_name)
+                    except Exception:
+                        logger.exception("Failed to auto-send config to Telegram")
                 except Exception:
                     logger.exception("Ошибка обработки webhook")
         return jsonify({"status": "ok"})
