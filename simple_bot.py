@@ -322,6 +322,11 @@ from io import BytesIO
 import qrcode
 from aiogram.types import BufferedInputFile
 
+from io import BytesIO
+import qrcode
+from aiogram.types import BufferedInputFile
+import os
+
 @dp.callback_query(lambda c: c.data == "get_qr")
 async def send_qr(callback: types.CallbackQuery):
     order = get_latest_paid_order_for_telegram(callback.from_user.id)
@@ -330,8 +335,12 @@ async def send_qr(callback: types.CallbackQuery):
         return
 
     try:
-        # Строим путь к конфигу на основе order_id
-        conf_file_path = f"/securelink/SecureLink/configs/wg_{order['id']}.conf"
+        # Полный путь к конфигу
+        conf_file_path = os.path.join("/securelink/SecureLink/configs", order['conf_file_name'])
+
+        if not os.path.isfile(conf_file_path):
+            await callback.answer("Файл конфига не найден", show_alert=True)
+            return
 
         # Чтение конфигурационного файла
         with open(conf_file_path, "r") as f:
@@ -342,8 +351,8 @@ async def send_qr(callback: types.CallbackQuery):
         qrcode.make(config_content).save(buf, format="PNG")
         buf.seek(0)
 
-        # Добавляем префикс к имени файла
-        filename = f"securelink_{order['id']}.png"
+        # Префикс к имени файла при отправке
+        filename = f"securelink_{order['conf_file_name'].replace('.conf', '')}.png"
         photo = BufferedInputFile(buf.read(), filename=filename)
 
         # Отправка QR-кода пользователю
