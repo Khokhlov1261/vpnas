@@ -775,6 +775,7 @@ def create_payment():
     data = request.json or {}
     email = (data.get("email") or "").strip()
     plan_id = data.get("plan_id")
+    telegram_id = data.get("telegram_id")  # <--- новый параметр
 
     if not isinstance(plan_id, int):
         return jsonify({"error": "Некорректный plan_id"}), 400
@@ -784,8 +785,11 @@ def create_payment():
         return jsonify({"error": "Неверные данные"}), 400
 
     try:
-        # Возврат в Telegram через deep-link после оплаты
-        # Передаём plan_id и phone (в нашем поле email) для последующей выдачи конфига
+        # Создаём заказ сразу с telegram_id
+        order_token, err = create_order_internal(email, plan_id, telegram_id=telegram_id)
+        if err:
+            logger.error("Ошибка при создании заказа: %s", err)
+
         return_url = f"https://t.me/{os.environ.get('BOT_USERNAME','Securelinkvpn_bot')}?start=paid_{plan_id}_{quote(email)}"
 
         payment = Payment.create({
@@ -793,7 +797,7 @@ def create_payment():
             "confirmation": {"type": "redirect", "return_url": return_url},
             "capture": True,
             "description": f"Оплата тарифа {plan_name} для {email}",
-            "metadata": {"email": email, "plan_id": plan_id},
+            "metadata": {"email": email, "plan_id": plan_id, "telegram_id": telegram_id},  # <-- добавляем сюда
         })
 
         logger.info("Created payment: %s", payment.id)
@@ -833,34 +837,50 @@ def yookassa_webhook():
             return jsonify({"error": "Неверный формат"}), 400
 
         payment = event["object"]
-        if payment.get("status") == "succeeded":
-            email = payment.get("metadata", {}).get("email")
-            plan_id = payment.get("metadata", {}).get("plan_id")
-            if email and plan_id:
-                try:
-                    plan_id = int(plan_id)
-                    token, err = create_order_internal(email, plan_id)
-                    if err:
-                        logger.error("Ошибка при создании заказа из webhook: %s", err)
-                    # Авторассылка в Telegram, если к заказу привязан telegram_id
-                    try:
-                        with get_conn() as conn:
-                            with conn.cursor() as cur:
-                                cur.execute(
-                                    "SELECT id, conf_file, telegram_id, plan FROM orders WHERE email=%s AND status='paid' ORDER BY id DESC LIMIT 1;",
-                                    (email,)
-                                )
-                                row = cur.fetchone()
-                                if row:
-                                    order_id, conf_file, telegram_id, plan_name = row
-                                    bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
-                                    if bot_token and telegram_id and conf_file and os.path.exists(conf_file):
-                                        send_telegram_doc_and_qr(bot_token, int(telegram_id), conf_file, plan_name)
-                    except Exception:
-                        logger.exception("Failed to auto-send config to Telegram")
-                except Exception:
-                    logger.exception("Ошибка обработки webhook")
+        if payment.get("status") != "succeeded":
+            return jsonify({"status": "ignored"})
+
+        metadata = payment.get("metadata", {})
+        email = metadata.get("email")
+        plan_id = metadata.get("plan_id")
+
+        if not email or not plan_id:
+            logger.warning("Missing email or plan_id in metadata")
+            return jsonify({"status": "ok"})
+
+        try:
+            plan_id = int(plan_id)
+            token, err = create_order_internal(email, plan_id)
+            if err:
+                logger.error("Ошибка при создании заказа из webhook: %s", err)
+        except Exception:
+            logger.exception("Ошибка при обработке заказа")
+
+        # Авторассылка в Telegram
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, conf_file, telegram_id, plan 
+                        FROM orders 
+                        WHERE email=%s AND status='paid' 
+                        ORDER BY id DESC 
+                        LIMIT 1;
+                        """,
+                        (email,)
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        order_id, conf_file, telegram_id, plan_name = row
+                        bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+                        if bot_token and telegram_id and conf_file and os.path.exists(conf_file):
+                            send_telegram_doc_and_qr(bot_token, int(telegram_id), conf_file, plan_name)
+        except Exception:
+            logger.exception("Failed to auto-send config to Telegram")
+
         return jsonify({"status": "ok"})
+
     except Exception:
         logger.exception("Ошибка в webhook")
         return jsonify({"error": "internal"}), 500
