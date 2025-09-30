@@ -235,7 +235,7 @@ async def handle_contact(message: types.Message):
     phone = message.contact.phone_number.strip()
     plan_id = state["plan_id"]
     await message.delete()
-    await message.answer(" ", reply_markup=ReplyKeyboardRemove())
+    await message.answer("✅", reply_markup=ReplyKeyboardRemove())
     try:
         requests.post(f"{BACKEND_URL}/bot/link-phone", json={"phone": phone, "telegram_id": message.from_user.id}, timeout=10)
         resp = requests.post(f"{BACKEND_URL}/create-payment", json={"email": phone, "plan_id": plan_id}, timeout=20)
