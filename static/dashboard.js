@@ -1,6 +1,206 @@
 /**
  * Dashboard JavaScript для личного кабинета SecureLink
+ * - Авто-логин через Telegram WebApp (initData)
+ * - Покупка тарифов из мини-приложения (редирект в YooKassa)
+ * - Отображение конфигов (.conf и QR) после оплаты
  */
+
+async function fetchJSON(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function ensureJwt() {
+  let token = localStorage.getItem('jwt');
+  if (token) return token;
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const initData = tg && tg.initData;
+  if (!initData) return null;
+  const resp = await fetch('/auth/telegram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ init_data: initData })
+  });
+  const data = await resp.json();
+  if (data && data.token) {
+    localStorage.setItem('jwt', data.token);
+    return data.token;
+  }
+  return null;
+}
+
+async function loadUser() {
+  try {
+    const token = await ensureJwt();
+    if (!token) return;
+    const data = await fetchJSON('/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+    const user = data && data.user ? data.user : null;
+    if (!user) return;
+    // Заполним боковую панель
+    document.getElementById('username').textContent = user.username ? `@${user.username}` : (user.first_name || 'User');
+    document.getElementById('avatarPlaceholder').textContent = (user.first_name || 'U').slice(0,1).toUpperCase();
+  } catch (e) {
+    console.error('loadUser error', e);
+  }
+}
+
+async function loadConfigs() {
+  try {
+    const token = await ensureJwt();
+    if (!token) return;
+    const res = await fetchJSON('/api/user/configs', { headers: { 'Authorization': `Bearer ${token}` } });
+    const listEl = document.getElementById('configsList');
+    listEl.innerHTML = '';
+    if (!res.configs || res.configs.length === 0) {
+      listEl.innerHTML = '<div class="empty">Конфигурации пока отсутствуют</div>';
+      return;
+    }
+    res.configs.forEach(cfg => {
+      const item = document.createElement('div');
+      item.className = 'config-item';
+      const actions = [];
+      if (cfg.download_url) actions.push(`<a class="btn" href="${cfg.download_url}">Скачать .conf</a>`);
+      if (cfg.qr_url) actions.push(`<a class="btn btn-secondary" target="_blank" href="${cfg.qr_url}">Открыть QR</a>`);
+      item.innerHTML = `
+        <div class="config-meta">
+          <div class="config-plan">${cfg.plan || ''}</div>
+          <div class="config-dates">${cfg.created_at || ''} → ${cfg.expires_at || ''}</div>
+          <div class="config-status ${cfg.status}">${cfg.status}</div>
+        </div>
+        <div class="config-actions">${actions.join(' ')}</div>
+      `;
+      listEl.appendChild(item);
+    });
+  } catch (e) {
+    console.error('loadConfigs error', e);
+  }
+}
+
+async function createPayment(planId, phone) {
+  try {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    const telegramId = tgUser && tgUser.id;
+    if (telegramId) {
+      await fetch('/bot/link-phone', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, telegram_id: telegramId })
+      });
+    }
+    const resp = await fetch('/create-payment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: phone, plan_id: planId })
+    });
+    const data = await resp.json();
+    if (data && data.confirmation_url) {
+      window.location.href = data.confirmation_url;
+    } else {
+      alert('Не удалось создать платёж');
+    }
+  } catch (e) {
+    console.error('createPayment error', e);
+    alert('Ошибка создания платежа');
+  }
+}
+
+async function loadSubscriptions() {
+  try {
+    const token = await ensureJwt();
+    if (!token) return;
+    const res = await fetchJSON('/api/user/subscriptions', { headers: { 'Authorization': `Bearer ${token}` } });
+    const listEl = document.getElementById('subscriptionsList');
+    listEl.innerHTML = '';
+
+    const plans = [
+      { id: 1, name: '1 месяц', price: 99 },
+      { id: 2, name: '6 месяцев', price: 499 },
+      { id: 3, name: '1 год', price: 999 }
+    ];
+
+    const plansWrap = document.createElement('div');
+    plansWrap.className = 'plans-grid';
+    plans.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'plan-card';
+      card.innerHTML = `
+        <h3>${p.name}</h3>
+        <div class="price">${p.price} ₽</div>
+        <button class="btn btn-primary" data-plan="${p.id}">Оплатить</button>
+      `;
+      plansWrap.appendChild(card);
+    });
+    listEl.appendChild(plansWrap);
+
+    listEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-plan]');
+      if (!btn) return;
+      const planId = parseInt(btn.getAttribute('data-plan'), 10);
+      const phone = prompt('Введите номер телефона для оформления оплаты:');
+      if (!phone) return;
+      await createPayment(planId, phone);
+    }, { once: true });
+
+    if (res.subscriptions && res.subscriptions.length) {
+      const myList = document.createElement('div');
+      myList.className = 'my-subscriptions';
+      res.subscriptions.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'sub-row';
+        row.innerHTML = `
+          <div class="sub-plan">${s.plan}</div>
+          <div class="sub-dates">${s.created_at || ''} → ${s.expires_at || ''}</div>
+          <div class="sub-status ${s.status}">${s.status}</div>
+        `;
+        myList.appendChild(row);
+      });
+      listEl.appendChild(myList);
+    }
+  } catch (e) {
+    console.error('loadSubscriptions error', e);
+  }
+}
+
+async function loadTraffic() {
+  try {
+    const token = await ensureJwt();
+    if (!token) return;
+    const res = await fetchJSON('/api/user/traffic', { headers: { 'Authorization': `Bearer ${token}` } });
+    // Простое заполнение сводки
+    const totalRx = (res.total_rx || 0) / (1024*1024);
+    const totalTx = (res.total_tx || 0) / (1024*1024);
+    document.getElementById('todayTraffic').textContent = `${totalRx.toFixed(1)} MB`;
+    document.getElementById('trafficDetails').textContent = `↓ ${totalRx.toFixed(1)} MB ↑ ${totalTx.toFixed(1)} MB`;
+  } catch (e) {
+    console.error('loadTraffic error', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const navLinks = document.querySelectorAll('.nav-link');
+  navLinks.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const section = link.getAttribute('data-section');
+      document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+      document.getElementById(section + 'Section').classList.add('active');
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      if (section === 'configs') loadConfigs();
+      if (section === 'subscriptions') loadSubscriptions();
+      if (section === 'traffic') loadTraffic();
+    });
+  });
+
+  (async () => {
+    await ensureJwt();
+    await loadUser();
+    // Подгрузим основные разделы
+    loadSubscriptions();
+    loadConfigs();
+    loadTraffic();
+  })();
+});
 
 class DashboardApp {
     constructor() {
