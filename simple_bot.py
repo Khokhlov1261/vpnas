@@ -130,12 +130,15 @@ def main_keyboard(user_id):
     url = f"{WEB_APP_URL}/dashboard"
     if token:
         url += f"?token={token}"
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton("📊 Мой аккаунт", callback_data="my_account")],
-        [InlineKeyboardButton("🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
-        [InlineKeyboardButton("❓ Помощь", callback_data="help")]
-    ])
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
+            [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
+            [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
+            [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
+        ]
+    )
 
 def plans_keyboard():
     buttons = [[InlineKeyboardButton(f"{p['emoji']} {p['name']} - {p['price']} ₽", callback_data=f"plan_{pid}")] for pid, p in PLANS_UI.items()]
