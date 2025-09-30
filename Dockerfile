@@ -1,11 +1,13 @@
 FROM python:3.12-slim
 
-# Устанавливаем базовые пакеты и nginx
-RUN apt-get update && apt-get install -y \
+# Устанавливаем базовые пакеты, wireguard-tools, psql клиент и nginx
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     libffi-dev \
     python3-dev \
+    postgresql-client \
+    wireguard-tools iproute2 iptables \
     nginx \
     && rm -rf /var/lib/apt/lists/*
 

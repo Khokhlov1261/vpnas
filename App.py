@@ -7,78 +7,71 @@ import logging
 import json
 import base64
 import qrcode
-
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
 from dateutil.relativedelta import relativedelta
 from urllib.parse import quote, unquote
-
 from flask import Flask, request, jsonify, render_template, send_file, url_for, Response
-
 import psutil
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
-
 # Postgres
 import psycopg2
 import psycopg2.pool
 import psycopg2.extras
-
 # Yookassa
 from yookassa import Configuration, Payment
-
 # User management
 from user_manager import UserManager
-
+from services.orders import OrderService, PLANS
 from dotenv import load_dotenv
-import os
+from app import config as cfg
+from app.db import init_db_pool as _init_db_pool, get_conn as _get_conn
+from app import wg as wgmod
 
 load_dotenv()  # это заставит Python читать .env
+
 # ---------------------------
 # CONFIG
 # ---------------------------
-APP_HOST = os.environ.get("APP_HOST", "0.0.0.0")
-APP_PORT = int(os.environ.get("APP_PORT", "9000"))
-DEBUG = os.environ.get("DEBUG", "true").lower() in ("1", "true", "yes")
+APP_HOST = cfg.APP_HOST
+APP_PORT = cfg.APP_PORT
+DEBUG = cfg.DEBUG
 
-CONF_DIR = os.environ.get("CONF_DIR", "configs")
-# Для sqlite у тебя было orders.db — теперь берем Postgres URL:
-DATABASE_URL = os.environ.get("DATABASE_URL")  # preferred
-PG_HOST = os.environ.get("PG_HOST", "localhost")
-PG_PORT = int(os.environ.get("PG_PORT", 5432))
-PG_DB = os.environ.get("PG_DB", "securelink")
-PG_USER = os.environ.get("PG_USER", "securelink")
-PG_PASSWORD = os.environ.get("PG_PASSWORD", "password")
+CONF_DIR = cfg.CONF_DIR
+DATABASE_URL = cfg.DATABASE_URL
+PG_HOST = cfg.PG_HOST
+PG_PORT = cfg.PG_PORT
+PG_DB = cfg.PG_DB
+PG_USER = cfg.PG_USER
+PG_PASSWORD = cfg.PG_PASSWORD
 
 # WireGuard / service settings
-WG_CONFIG_PATH = os.environ.get("WG_CONFIG_PATH", "/etc/wireguard/wg0.conf")
-WG_INTERFACE = os.environ.get("WG_INTERFACE", "wg0")
-SERVER_PUBLIC_KEY = os.environ.get("SERVER_PUBLIC_KEY", "JobMGKt7trpUtrwfs/XJ7OqIrjfJH4H4vfmsXjeiIX0=")
-SERVER_ENDPOINT = os.environ.get("SERVER_ENDPOINT", "secure-link.ru:51820")
-WG_CLIENT_NET_PREFIX = os.environ.get("WG_CLIENT_NET_PREFIX", "10.0.0.")
-WG_CLIENT_MIN = int(os.environ.get("WG_CLIENT_MIN", 2))
-WG_CLIENT_MAX = int(os.environ.get("WG_CLIENT_MAX", 254))
-DNS_ADDR = os.environ.get("DNS_ADDR", "8.8.8.8")
+WG_CONFIG_PATH = cfg.WG_CONFIG_PATH
+WG_INTERFACE = cfg.WG_INTERFACE
+SERVER_PUBLIC_KEY = cfg.SERVER_PUBLIC_KEY
+SERVER_ENDPOINT = cfg.SERVER_ENDPOINT
+DNS_ADDR = cfg.DNS_ADDR
 
 # Yookassa credentials
-YOOKASSA_SHOP_ID = os.environ.get("YOOKASSA_SHOP_ID", "1172066")
-YOOKASSA_SECRET_KEY = os.environ.get("YOOKASSA_SECRET_KEY", "live_ZEFkKFfMMXm4yQzVpsyRDwaNnTlx3jpTeGqX5Dkrezk")
+YOOKASSA_SHOP_ID = cfg.YOOKASSA_SHOP_ID
+YOOKASSA_SECRET_KEY = cfg.YOOKASSA_SECRET_KEY
 Configuration.account_id = YOOKASSA_SHOP_ID
 Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 # SMTP
-SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.mail.yahoo.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
-SMTP_USER = os.environ.get("SMTP_USER", "mailrealeden@yahoo.com")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "imkofnsgwnkiclaq")
-FROM_EMAIL = os.environ.get("FROM_EMAIL", SMTP_USER)
+SMTP_SERVER = cfg.SMTP_SERVER
+SMTP_PORT = cfg.SMTP_PORT
+SMTP_USER = cfg.SMTP_USER
+SMTP_PASSWORD = cfg.SMTP_PASSWORD
+FROM_EMAIL = cfg.FROM_EMAIL
 
 # JWT and Telegram
-JWT_SECRET = os.environ.get("JWT_SECRET", "your-secret-key-change-in-production")
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_WEBHOOK_URL = os.environ.get("TELEGRAM_WEBHOOK_URL")
+JWT_SECRET = cfg.JWT_SECRET
+TELEGRAM_BOT_TOKEN = cfg.TELEGRAM_BOT_TOKEN
+TELEGRAM_WEBHOOK_URL = cfg.TELEGRAM_WEBHOOK_URL
 
 # Logging
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s %(message)s")
@@ -90,43 +83,17 @@ os.makedirs(CONF_DIR, exist_ok=True)
 # ---------------------------
 # Postgres connection pool
 # ---------------------------
-POOL = None
 user_manager = None
 
 def init_db_pool():
-    global POOL, user_manager
-    if DATABASE_URL:
-        conninfo = DATABASE_URL
-    else:
-        conninfo = f"host={PG_HOST} port={PG_PORT} dbname={PG_DB} user={PG_USER} password={PG_PASSWORD}"
     try:
-        POOL = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=conninfo)
-        user_manager = UserManager(get_conn)
-        logger.info("Postgres pool and user manager initialized")
+        _init_db_pool()
     except Exception as e:
         logger.exception("Failed to initialize Postgres pool: %s", e)
         sys.exit(1)
 
 def get_conn():
-    """
-    Context manager that yields a connection from pool and returns it after use.
-    Use: with get_conn() as conn: ...
-    """
-    class _ConnCtx:
-        def __enter__(self):
-            self.conn = POOL.getconn()
-            # use autocommit=False by default; we commit explicitly where needed
-            self.conn.autocommit = False
-            return self.conn
-        def __exit__(self, exc_type, exc, tb):
-            try:
-                if exc_type:
-                    self.conn.rollback()
-                else:
-                    self.conn.commit()
-            finally:
-                POOL.putconn(self.conn)
-    return _ConnCtx()
+    return _get_conn()
 
 # ---------------------------
 # DB initialization (safe: won't clobber existing)
@@ -162,62 +129,32 @@ def run_cmd(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 def wg_set_peer(public_key: str, allowed_ips: str) -> bool:
-    res = run_cmd(["wg", "set", WG_INTERFACE, "peer", public_key, "allowed-ips", allowed_ips])
-    if res.returncode != 0:
-        logger.error("wg_set_peer failed: %s", (res.stderr or res.stdout).strip())
-        return False
-    return True
+    ok = wgmod.wg_set_peer(public_key, allowed_ips)
+    if not ok:
+        logger.error("wg_set_peer failed")
+    return ok
 
 def wg_remove_peer(public_key: str) -> bool:
-    res = run_cmd(["wg", "set", WG_INTERFACE, "peer", public_key, "remove"])
-    if res.returncode != 0:
-        logger.error("wg_remove_peer failed: %s", (res.stderr or res.stdout).strip())
-        return False
-    return True
+    ok = wgmod.wg_remove_peer(public_key)
+    if not ok:
+        logger.error("wg_remove_peer failed")
+    return ok
 
 def append_peer_to_conf(public_key: str, client_ip: str):
     try:
-        if os.path.exists(WG_CONFIG_PATH):
-            with open(WG_CONFIG_PATH, "r") as f:
-                contents = f.read()
-            if public_key in contents:
-                return
-        with open(WG_CONFIG_PATH, "a") as f:
-            f.write(f"\n[Peer]\nPublicKey = {public_key}\nAllowedIPs = {client_ip}\n")
+        wgmod.append_peer_to_conf(public_key, client_ip)
         logger.info("Appended peer %s -> %s to %s", public_key, client_ip, WG_CONFIG_PATH)
     except Exception as e:
         logger.exception("Failed to append peer to conf: %s", e)
 
 def get_used_ips() -> set:
-    ips = set()
-    if os.path.exists(WG_CONFIG_PATH):
-        with open(WG_CONFIG_PATH) as f:
-            for line in f:
-                if line.strip().startswith("AllowedIPs"):
-                    ip = line.split("=", 1)[1].strip().split("/")[0]
-                    ips.add(ip)
-    # also take any client_ip from DB
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT client_ip FROM orders WHERE client_ip IS NOT NULL;")
-            for row in cur.fetchall():
-                ip = row[0]
-                if ip:
-                    ips.add(ip.split("/")[0])
-    return ips
+    return wgmod.get_used_ips()
 
 def get_next_free_ip() -> str:
-    used = get_used_ips()
-    for i in range(WG_CLIENT_MIN, WG_CLIENT_MAX + 1):
-        ip = f"{WG_CLIENT_NET_PREFIX}{i}"
-        if ip not in used:
-            return f"{ip}/32"
-    raise RuntimeError("No free IP addresses left")
+    return wgmod.get_next_free_ip()
 
 def wg_gen_keypair():
-    private = subprocess.check_output(["wg", "genkey"]).decode().strip()
-    public = subprocess.check_output(["wg", "pubkey"], input=private.encode()).decode().strip()
-    return private, public
+    return wgmod.wg_gen_keypair()
 
 def parse_conf(conf_path: str):
     result = {"PrivateKey": None, "Address": None}
@@ -296,11 +233,7 @@ def subscription_loop():
 # ---------------------------
 # Plans and order logic
 # ---------------------------
-PLANS = {
-    1: ("1 месяц", 99.0, "month1"),
-    2: ("6 месяцев", 499.0, "month6"),
-    3: ("1 год", 999.0, "year"),
-}
+PLANS = PLANS
 
 def calculate_expiry_extended(plan_type: str, current_expiry):
     now = datetime.now(timezone.utc)
@@ -324,114 +257,10 @@ def calculate_expiry_extended(plan_type: str, current_expiry):
         return (base + relativedelta(years=1)).isoformat()
     return base.isoformat()
 
+order_service: OrderService = None
+
 def create_order_internal(email: str, plan_id: int, user_id: int = None, telegram_id: int = None):
-    """
-    Main logic for creating/updating orders after payment (webhook).
-    Works with existing DB table structure.
-    Returns (token, None) or (None, error_message)
-    """
-    try:
-        plan_name, price, plan_type = PLANS.get(plan_id, ("неизвестно", 0, None))
-        if not email or price <= 0:
-            return None, "Неверные данные"
-
-        now = datetime.now(timezone.utc)
-
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                # get last order for this email
-                cur.execute(
-                    "SELECT id, conf_file, public_key, client_ip, status, expires_at "
-                    "FROM orders WHERE email=%s ORDER BY id DESC LIMIT 1;",
-                    (email,)
-                )
-                row = cur.fetchone()
-                current_expiry = None
-
-                if row:
-                    order_id, conf_file, public_key, client_ip, status, current_expiry = row
-
-                    # Если конфиг отсутствует — создаём новый
-                    if not conf_file or not os.path.exists(conf_file):
-                        conf_path, public_key, client_ip = create_client_conf(order_id, email, plan_name)
-                        cur.execute(
-                            "UPDATE orders SET conf_file=%s, public_key=%s, client_ip=%s WHERE id=%s;",
-                            (conf_path, public_key, client_ip, order_id)
-                        )
-                        logger.info("Updated order %s with new conf", order_id)
-                        # отправляем письмо
-                        try:
-                            send_conf_email(email, conf_path)
-                        except Exception:
-                            logger.exception("Failed to send conf email")
-
-                    # Восстанавливаем peer и статус для истекшего заказа
-                    if status == "expired":
-                        if conf_file and os.path.exists(conf_file):
-                            conf_path = conf_file
-                            fields = parse_conf(conf_path)
-                            private_key = fields.get("PrivateKey")
-                            address = fields.get("Address")
-                            if not public_key and private_key:
-                                try:
-                                    public_key = subprocess.check_output(
-                                        ["wg", "pubkey"], input=private_key.encode()
-                                    ).decode().strip()
-                                except Exception as e:
-                                    logger.exception("Failed to derive public key: %s", e)
-                            if address and public_key:
-                                wg_set_peer(public_key, address)
-                                append_peer_to_conf(public_key, address)
-                            cur.execute(
-                                "UPDATE orders SET status='paid', public_key=COALESCE(public_key,%s), "
-                                "client_ip=COALESCE(client_ip,%s) WHERE id=%s;",
-                                (public_key, address, order_id)
-                            )
-                            logger.info("Reactivated expired order %s", order_id)
-                            try:
-                                send_conf_email(email, conf_path)
-                            except Exception:
-                                logger.exception("Failed to send conf email on reactivation")
-
-                expires_at = calculate_expiry_extended(plan_type, current_expiry)
-
-                # Обновляем существующий заказ или создаём новый
-                if row:
-                    cur.execute(
-                        "UPDATE orders SET expires_at=%s, plan=%s, price=%s, status='paid' WHERE id=%s;",
-                        (expires_at, plan_name, price, order_id)
-                    )
-                    logger.info("Extended order %s until %s", order_id, expires_at)
-                else:
-                    cur.execute(
-                        "INSERT INTO orders(email, plan, price, status, created_at, expires_at, user_id, telegram_id) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                        (email, plan_name, price, "paid", now.isoformat(), expires_at, user_id, telegram_id)
-                    )
-                    order_id = cur.fetchone()[0]
-                    conf_path, public_key, client_ip = create_client_conf(order_id, email, plan_name)
-                    cur.execute(
-                        "UPDATE orders SET conf_file=%s, public_key=%s, client_ip=%s WHERE id=%s;",
-                        (conf_path, public_key, client_ip, order_id)
-                    )
-                    logger.info("Created new order %s", order_id)
-                    try:
-                        send_conf_email(email, conf_path)
-                    except Exception:
-                        logger.exception("Failed to send conf email on new order")
-
-        token_data = {
-            "id": order_id,
-            "email": email,
-            "plan": {"name": plan_name, "price": float(price)},
-            "status": "paid"
-        }
-        token = base64.b64encode(json.dumps(token_data).encode()).decode()
-        return token, None
-
-    except Exception as e:
-        logger.exception("Ошибка создания заказа")
-        return None, str(e)
+    return order_service.create_order_internal(email, plan_id, user_id=user_id, telegram_id=telegram_id)
 
 # ---------------------------
 # Flask app & routes
@@ -945,6 +774,26 @@ def create_payment():
         logger.exception("Ошибка при создании платежа")
         return jsonify({"error": str(e)}), 500
 
+@app.route("/bot/link-email", methods=["POST"])
+def bot_link_email():
+    """Привязывает telegram_id к email (для автодоставки конфига в боте)."""
+    try:
+        data = request.json or {}
+        email = (data.get("email") or "").strip()
+        telegram_id = data.get("telegram_id")
+        if not email or not telegram_id:
+            return jsonify({"error": "email и telegram_id обязательны"}), 400
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE orders SET telegram_id=%s WHERE email=%s AND status IN ('pending','paid');",
+                    (telegram_id, email)
+                )
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        logger.exception("link-email error: %s", e)
+        return jsonify({"error": "internal"}), 500
+
 @app.route("/yookassa-webhook", methods=["POST"])
 def yookassa_webhook():
     try:
@@ -964,6 +813,40 @@ def yookassa_webhook():
                     token, err = create_order_internal(email, plan_id)
                     if err:
                         logger.error("Ошибка при создании заказа из webhook: %s", err)
+                    # Авторассылка в Telegram, если к заказу привязан telegram_id
+                    try:
+                        with get_conn() as conn:
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "SELECT id, conf_file, telegram_id, plan FROM orders WHERE email=%s AND status='paid' ORDER BY id DESC LIMIT 1;",
+                                    (email,)
+                                )
+                                row = cur.fetchone()
+                                if row:
+                                    order_id, conf_file, telegram_id, plan_name = row
+                                    if telegram_id and conf_file and os.path.exists(conf_file):
+                                        try:
+                                            import asyncio
+                                            from aiogram import Bot
+                                            from aiogram.types import FSInputFile
+                                            bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+                                            if bot_token:
+                                                async def _send():
+                                                    bot = Bot(token=bot_token)
+                                                    caption = f"Тариф: {plan_name}\nИнструкция: установите WireGuard, импортируйте файл, включите."
+                                                    await bot.send_document(chat_id=int(telegram_id), document=FSInputFile(conf_file, filename=f"securelink_{order_id}.conf"), caption=caption)
+                                                    # QR
+                                                    with open(conf_file, 'r') as f:
+                                                        conf_text = f.read()
+                                                    buf = BytesIO()
+                                                    qrcode.make(conf_text).save(buf, "PNG")
+                                                    buf.seek(0)
+                                                    from aiogram.types import BufferedInputFile
+                                                    await bot.send_photo(chat_id=int(telegram_id), photo=BufferedInputFile(buf.read(), filename=f"securelink_{order_id}.png"), caption="QR для импорта")
+                                                    await bot.session.close()
+                                                asyncio.get_event_loop().create_task(_send())
+                                        except Exception:
+                                            logger.exception("Failed to auto-send config to Telegram")
                 except Exception:
                     logger.exception("Ошибка обработки webhook")
         return jsonify({"status": "ok"})
@@ -1183,9 +1066,25 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 # init DB pool also when imported (Gunicorn case)
-if POOL is None:
+if True:
     init_db_pool()
     init_db()
+    user_manager = UserManager(get_conn)
+    # Инициализация общего OrderService
+    order_service = OrderService(
+        get_conn,
+        wg_set_peer=wg_set_peer,
+        append_peer_to_conf=append_peer_to_conf,
+        wg_remove_peer=wg_remove_peer,
+        parse_conf=parse_conf,
+        send_conf_email=send_conf_email,
+        wg_gen_keypair=wg_gen_keypair,
+        get_next_free_ip=get_next_free_ip,
+        conf_dir=CONF_DIR,
+        server_public_key=SERVER_PUBLIC_KEY,
+        server_endpoint=SERVER_ENDPOINT,
+        dns_addr=DNS_ADDR,
+    )
     start_background_tasks()
 
 # ---------------------------
@@ -1197,4 +1096,3 @@ if __name__ == "__main__":
 
 
 
-#
