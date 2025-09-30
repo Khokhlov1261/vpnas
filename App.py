@@ -784,7 +784,9 @@ def create_payment():
         return jsonify({"error": "Неверные данные"}), 400
 
     try:
-        return_url = f"http://secure-link.ru/payment-callback?email={quote(email)}&plan_id={plan_id}"
+        # Возврат в Telegram через deep-link после оплаты
+        # Передаём plan_id и phone (в нашем поле email) для последующей выдачи конфига
+        return_url = f"https://t.me/{os.environ.get('BOT_USERNAME','Securelinkvpn_bot')}?start=paid_{plan_id}_{quote(email)}"
 
         payment = Payment.create({
             "amount": {"value": f"{price:.2f}", "currency": "RUB"},

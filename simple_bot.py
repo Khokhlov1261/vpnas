@@ -11,10 +11,11 @@ from datetime import datetime
 from io import BytesIO
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, FSInputFile, BufferedInputFile
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, FSInputFile, BufferedInputFile, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import Command
 from dotenv import load_dotenv
 from services.orders import PLANS
+import json
 import requests
 import qrcode
 
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru/dashboard")
 BACKEND_URL = os.environ.get("BACKEND_URL", os.environ.get("WEB_BACKEND_URL", "http://app:9000"))
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "Securelinkvpn_bot")
 
 PLANS_UI = {
     1: {"name": "1 месяц", "price": 99, "days": 30, "emoji": "📅"},
@@ -87,7 +89,7 @@ def get_user_token(user_id):
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
-# Простое хранение состояния оплаты (ожидаем email)
+# Простое хранение состояния оплаты (ожидаем контакт)
 PAYMENT_STATE = {}
 
 # -------------------- Клавиатуры --------------------
@@ -100,7 +102,6 @@ def main_keyboard(user_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
         [InlineKeyboardButton(text="📊 Мой аккаунт", callback_data="my_account")],
-        [InlineKeyboardButton(text="📄 Получить конфиг", callback_data="get_config")],
         [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
         [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
@@ -116,7 +117,6 @@ def plans_keyboard():
 def plan_detail_keyboard(plan_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Оплатить", callback_data=f"pay_{plan_id}")],
-        [InlineKeyboardButton(text="📄 Конфиг", callback_data="get_config"), InlineKeyboardButton(text="🔳 QR", callback_data="get_qr")],
         [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="show_plans")]
     ])
 
@@ -182,12 +182,14 @@ async def pay_plan(callback: types.CallbackQuery):
         ))
         await callback.answer()
         return
-    # Просим ввести email для оплаты
-    PAYMENT_STATE[callback.from_user.id] = {"plan_id": plan_id, "awaiting_email": True}
-    await callback.message.edit_text(
-        "Введите ваш email для отправки конфига после оплаты:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Отмена", callback_data="show_plans")]])
+    # Просим номер телефона через кнопку Поделиться номером
+    PAYMENT_STATE[callback.from_user.id] = {"plan_id": plan_id, "awaiting_contact": True}
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📱 Поделиться номером", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True
     )
+    await callback.message.answer("Поделитесь вашим номером телефона для оформления оплаты:", reply_markup=kb)
     await callback.answer()
 
 @dp.message()
