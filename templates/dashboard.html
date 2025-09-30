@@ -111,11 +111,9 @@
         <!-- Основной контент -->
         <main class="main-content">
             <div class="content-header">
-                <h1 id="pageTitle">Dashboard</h1>
+                <h1 id="pageTitle">Личный кабинет</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary" id="renewSubscriptionBtn" style="display: none;">
-                        Продлить подписку
-                    </button>
+                    <button class="btn btn-primary" id="renewSubscriptionBtn" style="display: none;">Продлить подписку</button>
                 </div>
             </div>
             
@@ -189,10 +187,22 @@
                 </div>
             </div>
             
-            <!-- Configs Section -->
-            <div class="content-section" id="configsSection">
+            <!-- Quick Config (Mobile-first) -->
+            <div class="content-section active" id="configsSection">
                 <div class="section-header">
-                    <h2>Конфигурации WireGuard</h2>
+                    <h2>Ваши конфигурации</h2>
+                </div>
+                <div class="quick-config" id="quickConfig" style="display:none;">
+                    <div class="config-actions">
+                        <a class="btn" id="quickDownload" href="#">Скачать .conf</a>
+                        <button class="btn btn-secondary" id="quickShowQR">Показать QR</button>
+                    </div>
+                    <div class="qr-container" id="quickQR" style="display:none;">
+                        <img id="quickQRImg" alt="QR" />
+                    </div>
+                    <div class="config-instruction" id="quickInstruction">
+                        Инструкция: установите WireGuard, импортируйте .conf или отсканируйте QR, затем включите соединение.
+                    </div>
                 </div>
                 <div class="configs-list" id="configsList">
                     <div class="loading">Загрузка конфигураций...</div>

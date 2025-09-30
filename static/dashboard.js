@@ -51,10 +51,29 @@ async function loadConfigs() {
     if (!token) return;
     const res = await fetchJSON('/api/user/configs', { headers: { 'Authorization': `Bearer ${token}` } });
     const listEl = document.getElementById('configsList');
+    const quick = document.getElementById('quickConfig');
+    const quickDl = document.getElementById('quickDownload');
+    const quickShowQR = document.getElementById('quickShowQR');
+    const quickQR = document.getElementById('quickQR');
+    const quickQRImg = document.getElementById('quickQRImg');
     listEl.innerHTML = '';
     if (!res.configs || res.configs.length === 0) {
       listEl.innerHTML = '<div class="empty">Конфигурации пока отсутствуют</div>';
+      quick.style.display = 'none';
       return;
+    }
+    // Показать первую конфигурацию как быстрый доступ
+    const first = res.configs[0];
+    if (first && first.has_file) {
+      quick.style.display = '';
+      quickDl.href = first.download_url;
+      quickShowQR.onclick = async () => {
+        quickQR.style.display = '';
+        quickQRImg.src = first.qr_url;
+        quickQRImg.onload = () => {};
+      };
+    } else {
+      quick.style.display = 'none';
     }
     res.configs.forEach(cfg => {
       const item = document.createElement('div');
@@ -178,26 +197,29 @@ async function loadTraffic() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const navLinks = document.querySelectorAll('.nav-link');
-  navLinks.forEach(link => {
-    link.addEventListener('click', e => {
-      e.preventDefault();
-      const section = link.getAttribute('data-section');
-      document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-      document.getElementById(section + 'Section').classList.add('active');
-      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-      link.classList.add('active');
-      if (section === 'configs') loadConfigs();
-      if (section === 'subscriptions') loadSubscriptions();
-      if (section === 'traffic') loadTraffic();
+  if (navLinks && navLinks.length) {
+    navLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const section = link.getAttribute('data-section');
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        document.getElementById(section + 'Section').classList.add('active');
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        if (section === 'configs') loadConfigs();
+        if (section === 'subscriptions') loadSubscriptions();
+        if (section === 'traffic') loadTraffic();
+      });
     });
-  });
+  }
 
   (async () => {
     await ensureJwt();
     await loadUser();
-    // Подгрузим основные разделы
+    // По умолчанию показываем конфиги (mobile-first)
+    await loadConfigs();
+    // Остальные данные подгрузим фоном
     loadSubscriptions();
-    loadConfigs();
     loadTraffic();
   })();
 });
