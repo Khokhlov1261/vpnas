@@ -59,38 +59,29 @@ def create_user(telegram_id, username, first_name, last_name, language_code):
         return None
 
     cursor = conn.cursor()
-    cursor.execute("SELECT id, dashboard_token FROM users WHERE telegram_id = %s", (telegram_id,))
+    cursor.execute("SELECT id FROM users WHERE telegram_id = %s", (telegram_id,))
     user = cursor.fetchone()
 
     if user:
-        user_id, token = user
+        user_id = user[0]
         cursor.execute("UPDATE users SET last_login = NOW() WHERE id = %s", (user_id,))
         conn.commit()
         conn.close()
         return user_id
 
-    # Создаём токен при первом добавлении
-    token = secrets.token_urlsafe(32)
     cursor.execute("""
-        INSERT INTO users (telegram_id, username, first_name, last_name, language_code, created_at, last_login, dashboard_token)
-        VALUES (%s, %s, %s, %s, %s, NOW(), NOW(), %s)
+        INSERT INTO users (telegram_id, username, first_name, last_name, language_code, created_at, last_login)
+        VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
         RETURNING id
-    """, (telegram_id, username, first_name, last_name, language_code, token))
+    """, (telegram_id, username, first_name, last_name, language_code))
     user_id = cursor.fetchone()[0]
     conn.commit()
     conn.close()
-    logger.info(f"Created new user {user_id} with token {token}")
+    logger.info(f"Created new user {user_id}")
     return user_id
 
 def get_user_token(user_id):
-    conn = get_db_connection()
-    if not conn:
-        return None
-    cursor = conn.cursor()
-    cursor.execute("SELECT dashboard_token FROM users WHERE id = %s", (user_id,))
-    token = cursor.fetchone()
-    conn.close()
-    return token[0] if token else None
+    return None
 
 # -------------------- Инициализация бота --------------------
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
