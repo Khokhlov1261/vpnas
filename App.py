@@ -31,6 +31,8 @@ from app import config as cfg
 from app.db import init_db_pool as _init_db_pool, get_conn as _get_conn
 from app import wg as wgmod
 
+#
+
 load_dotenv()  # это заставит Python читать .env
 
 # ---------------------------

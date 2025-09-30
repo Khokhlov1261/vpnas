@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+.env
+.env.*
+.git
+.gitignore
+.vscode
+.idea
+configs/*.conf
+configs/*.zip
+*.log
+node_modules

@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${PG_DB:-securelink}
+      POSTGRES_USER: ${PG_USER:-securelink}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-securelink_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-securelink}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PG_HOST: db
+      PG_PORT: 5432
+    ports:
+      - "80:80"
+      - "9000:9000"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./configs:/app/configs
+      - /etc/wireguard:/etc/wireguard
+
+volumes:
+  db_data:
