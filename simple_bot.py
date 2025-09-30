@@ -192,6 +192,53 @@ async def pay_plan(callback: types.CallbackQuery):
     await callback.message.answer("Поделитесь вашим номером телефона для оформления оплаты:", reply_markup=kb)
     await callback.answer()
 
+@dp.message(lambda m: m.contact is not None)
+async def handle_contact_and_create_payment(message: types.Message):
+    state = PAYMENT_STATE.get(message.from_user.id)
+    if not state or not state.get("awaiting_contact"):
+        return
+    plan_id = state["plan_id"]
+    phone = (message.contact.phone_number or "").strip()
+    # Удаляем сообщение с контактом и убираем клавиатуру
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    try:
+        await message.answer(" ", reply_markup=ReplyKeyboardRemove())
+    except Exception:
+        pass
+    # Линкуем phone к telegram_id на бэкенде
+    try:
+        requests.post(f"{BACKEND_URL}/bot/link-phone", json={"phone": phone, "telegram_id": message.from_user.id}, timeout=10)
+    except Exception as e:
+        logger.warning(f"link-phone failed: {e}")
+    # Создаём платёж и отправляем ссылку
+    try:
+        resp = requests.post(f"{BACKEND_URL}/create-payment", json={"email": phone, "plan_id": plan_id}, timeout=20)
+        data = resp.json() if resp.ok else None
+        url = data.get("confirmation_url") if data else None
+        if not url:
+            raise RuntimeError(f"backend error: {resp.status_code} {resp.text}")
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Перейти к оплате", url=url)]])
+        msg = await message.answer("Перейдите по ссылке для оплаты:", reply_markup=kb)
+        # Сохраняем id сообщения для удаления после оплаты
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS payment_messages (id SERIAL PRIMARY KEY, telegram_id BIGINT, message_ids JSONB, created_at TIMESTAMPTZ DEFAULT NOW())")
+            conn.commit()
+            cur.execute("INSERT INTO payment_messages (telegram_id, message_ids) VALUES (%s, %s)", (message.from_user.id, json.dumps([msg.message_id])))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"store payment message failed: {e}")
+        state["awaiting_contact"] = False
+        state["phone"] = phone
+    except Exception as e:
+        logger.error(f"Payment create error: {e}")
+        await message.answer("Не удалось создать платёж. Попробуйте позже.")
+
 @dp.message()
 async def catch_email_for_payment(message: types.Message):
     state = PAYMENT_STATE.get(message.from_user.id)
@@ -245,7 +292,6 @@ async def my_account(callback: types.CallbackQuery):
 """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Тарифы", callback_data="show_plans")],
-        [InlineKeyboardButton(text="📄 Получить конфиг", callback_data="get_config")],
         [InlineKeyboardButton(text="🚀 Личный кабинет", web_app=WebAppInfo(url=url))],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")]
     ])
