@@ -141,8 +141,12 @@ def main_keyboard(user_id):
     )
 
 def plans_keyboard():
-    buttons = [[InlineKeyboardButton(f"{p['emoji']} {p['name']} - {p['price']} ₽", callback_data=f"plan_{pid}")] for pid, p in PLANS_UI.items()]
-    buttons.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_main")])
+    buttons = [
+        [InlineKeyboardButton(text=f"{plan['emoji']} {plan['name']} - {plan['price']} ₽",
+                              callback_data=f"plan_{plan_id}")]
+        for plan_id, plan in PLANS_UI.items()
+    ]
+    buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def plan_detail_keyboard(plan_id):
