@@ -174,9 +174,31 @@ async function loadSubscriptions() {
         myList.appendChild(row);
       });
       listEl.appendChild(myList);
+
+      // Активная подписка (верхний блок)
+      const active = res.subscriptions.find(s => s.status === 'paid');
+      const activeEl = document.getElementById('activeSubscription');
+      const expiryEl = document.getElementById('subscriptionExpiry');
+      if (active) {
+        activeEl.textContent = active.plan || 'Активна';
+        expiryEl.textContent = active.expires_at ? `Оплачено до: ${new Date(active.expires_at).toLocaleDateString('ru-RU')}` : '—';
+      } else {
+        activeEl.textContent = 'Нет активной подписки';
+        expiryEl.textContent = '—';
+      }
+    } else {
+      // Нет подписок — обновим статусы вверху
+      const activeEl = document.getElementById('activeSubscription');
+      const expiryEl = document.getElementById('subscriptionExpiry');
+      activeEl.textContent = 'Нет активной подписки';
+      expiryEl.textContent = '—';
     }
   } catch (e) {
     console.error('loadSubscriptions error', e);
+    const activeEl = document.getElementById('activeSubscription');
+    const expiryEl = document.getElementById('subscriptionExpiry');
+    activeEl.textContent = 'Ошибка загрузки';
+    expiryEl.textContent = '—';
   }
 }
 
