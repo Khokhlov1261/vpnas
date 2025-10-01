@@ -1,540 +1,158 @@
 /**
  * Dashboard JavaScript для личного кабинета SecureLink
- * - Авто-логин через Telegram WebApp (initData)
- * - Покупка тарифов из мини-приложения (редирект в YooKassa)
+ * - Авторизация через Telegram WebApp
+ * - Покупка тарифов (редирект в YooKassa)
  * - Отображение конфигов (.conf и QR) после оплаты
  */
-
-async function fetchJSON(url, opts) {
-  const res = await fetch(url, opts);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-async function ensureJwt() {
-  let token = localStorage.getItem('jwt');
-  if (token) return token;
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const initData = tg && tg.initData;
-  if (!initData) return null;
-  const resp = await fetch('/auth/telegram', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ init_data: initData })
-  });
-  const data = await resp.json();
-  if (data && data.token) {
-    localStorage.setItem('jwt', data.token);
-    return data.token;
-  }
-  return null;
-}
-
-async function loadUser() {
-  try {
-    const token = await ensureJwt();
-    if (!token) return;
-    const data = await fetchJSON('/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
-    const user = data && data.user ? data.user : null;
-    if (!user) return;
-    // Заполним боковую панель
-    document.getElementById('username').textContent = user.username ? `@${user.username}` : (user.first_name || 'User');
-    document.getElementById('avatarPlaceholder').textContent = (user.first_name || 'U').slice(0,1).toUpperCase();
-  } catch (e) {
-    console.error('loadUser error', e);
-  }
-}
-
-async function loadConfigs() {
-  try {
-    const token = await ensureJwt();
-    if (!token) return;
-    const res = await fetchJSON('/api/user/configs', { headers: { 'Authorization': `Bearer ${token}` } });
-    const listEl = document.getElementById('configsList');
-    const quick = document.getElementById('quickConfig');
-    const quickDl = document.getElementById('quickDownload');
-    const quickShowQR = document.getElementById('quickShowQR');
-    const quickQR = document.getElementById('quickQR');
-    const quickQRImg = document.getElementById('quickQRImg');
-    listEl.innerHTML = '';
-    if (!res.configs || res.configs.length === 0) {
-      listEl.innerHTML = '<div class="empty">Конфигурации пока отсутствуют</div>';
-      quick.style.display = 'none';
-      return;
-    }
-    // Показать первую конфигурацию как быстрый доступ
-    const first = res.configs[0];
-    if (first && first.has_file) {
-      quick.style.display = '';
-      quickDl.href = first.download_url;
-      quickShowQR.onclick = async () => {
-        quickQR.style.display = '';
-        quickQRImg.src = first.qr_url;
-        quickQRImg.onload = () => {};
-      };
-    } else {
-      quick.style.display = 'none';
-    }
-    res.configs.forEach(cfg => {
-      const item = document.createElement('div');
-      item.className = 'config-item';
-      const actions = [];
-      if (cfg.download_url) actions.push(`<a class="btn" href="${cfg.download_url}">Скачать .conf</a>`);
-      if (cfg.qr_url) actions.push(`<a class="btn btn-secondary" target="_blank" href="${cfg.qr_url}">Открыть QR</a>`);
-      item.innerHTML = `
-        <div class="config-meta">
-          <div class="config-plan">${cfg.plan || ''}</div>
-          <div class="config-dates">${cfg.created_at || ''} → ${cfg.expires_at || ''}</div>
-          <div class="config-status ${cfg.status}">${cfg.status}</div>
-        </div>
-        <div class="config-actions">${actions.join(' ')}</div>
-      `;
-      listEl.appendChild(item);
-    });
-  } catch (e) {
-    console.error('loadConfigs error', e);
-  }
-}
-
-async function createPayment(planId, phone) {
-  try {
-    const tg = window.Telegram && window.Telegram.WebApp;
-    const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    const telegramId = tgUser && tgUser.id;
-    if (telegramId) {
-      await fetch('/bot/link-phone', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, telegram_id: telegramId })
-      });
-    }
-    const resp = await fetch('/create-payment', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: phone, plan_id: planId })
-    });
-    const data = await resp.json();
-    if (data && data.confirmation_url) {
-      window.location.href = data.confirmation_url;
-    } else {
-      alert('Не удалось создать платёж');
-    }
-  } catch (e) {
-    console.error('createPayment error', e);
-    alert('Ошибка создания платежа');
-  }
-}
-
-async function loadSubscriptions() {
-  try {
-    const token = await ensureJwt();
-    if (!token) return;
-
-    const res = await fetchJSON('/api/user/subscriptions', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    const listEl = document.getElementById('subscriptionsList');
-    listEl.innerHTML = '';
-
-    if (res.configs && res.configs.length > 0) {
-      const sub = res.configs[0]; // берём первую активную подписку
-
-      // Заполняем блок сверху
-      document.getElementById("activeSubscription").textContent = sub.plan;
-      document.getElementById("subscriptionExpiry").textContent = "Действует до: " + sub.expires_at;
-
-      // (дальше твоя логика отрисовки списка в listEl)
-    } else {
-      document.getElementById("activeSubscription").textContent = "Нет активной подписки";
-      document.getElementById("subscriptionExpiry").textContent = "—";
-    }
-
-  } catch (err) {
-    console.error('Ошибка загрузки подписок', err);
-    document.getElementById("activeSubscription").textContent = "Ошибка загрузки";
-    document.getElementById("subscriptionExpiry").textContent = "—";
-  }
-}
-
-    const plans = [
-      { id: 1, name: '1 месяц', price: 99 },
-      { id: 2, name: '6 месяцев', price: 499 },
-      { id: 3, name: '1 год', price: 999 }
-    ];
-
-    const plansWrap = document.createElement('div');
-    plansWrap.className = 'plans-grid';
-    plans.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'plan-card';
-      card.innerHTML = `
-        <h3>${p.name}</h3>
-        <div class="price">${p.price} ₽</div>
-        <button class="btn btn-primary" data-plan="${p.id}">Оплатить</button>
-      `;
-      plansWrap.appendChild(card);
-    });
-    listEl.appendChild(plansWrap);
-
-    listEl.addEventListener('click', async (e) => {
-      const btn = e.target.closest('button[data-plan]');
-      if (!btn) return;
-      const planId = parseInt(btn.getAttribute('data-plan'), 10);
-      const phone = prompt('Введите номер телефона для оформления оплаты:');
-      if (!phone) return;
-      await createPayment(planId, phone);
-    }, { once: true });
-
-    if (res.subscriptions && res.subscriptions.length) {
-      const myList = document.createElement('div');
-      myList.className = 'my-subscriptions';
-      res.subscriptions.forEach(s => {
-        const row = document.createElement('div');
-        row.className = 'sub-row';
-        row.innerHTML = `
-          <div class="sub-plan">${s.plan}</div>
-          <div class="sub-dates">${s.created_at || ''} → ${s.expires_at || ''}</div>
-          <div class="sub-status ${s.status}">${s.status}</div>
-        `;
-        myList.appendChild(row);
-      });
-      listEl.appendChild(myList);
-
-      // Активная подписка (верхний блок)
-      const active = res.subscriptions.find(s => s.status === 'paid');
-      const activeEl = document.getElementById('activeSubscription');
-      const expiryEl = document.getElementById('subscriptionExpiry');
-      if (active) {
-        activeEl.textContent = active.plan || 'Активна';
-        expiryEl.textContent = active.expires_at ? `Оплачено до: ${new Date(active.expires_at).toLocaleDateString('ru-RU')}` : '—';
-      } else {
-        activeEl.textContent = 'Нет активной подписки';
-        expiryEl.textContent = '—';
-      }
-    } else {
-      // Нет подписок — обновим статусы вверху
-      const activeEl = document.getElementById('activeSubscription');
-      const expiryEl = document.getElementById('subscriptionExpiry');
-      activeEl.textContent = 'Нет активной подписки';
-      expiryEl.textContent = '—';
-    }
-  } catch (e) {
-    console.error('loadSubscriptions error', e);
-    const activeEl = document.getElementById('activeSubscription');
-    const expiryEl = document.getElementById('subscriptionExpiry');
-    activeEl.textContent = 'Ошибка загрузки';
-    expiryEl.textContent = '—';
-  }
-}
-
-async function loadTraffic() {
-  try {
-    const token = await ensureJwt();
-    if (!token) return;
-    const res = await fetchJSON('/api/user/traffic', { headers: { 'Authorization': `Bearer ${token}` } });
-    // Простое заполнение сводки
-    const totalRx = (res.total_rx || 0) / (1024*1024);
-    const totalTx = (res.total_tx || 0) / (1024*1024);
-    document.getElementById('todayTraffic').textContent = `${totalRx.toFixed(1)} MB`;
-    document.getElementById('trafficDetails').textContent = `↓ ${totalRx.toFixed(1)} MB ↑ ${totalTx.toFixed(1)} MB`;
-  } catch (e) {
-    console.error('loadTraffic error', e);
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const navLinks = document.querySelectorAll('.nav-link');
-  if (navLinks && navLinks.length) {
-    navLinks.forEach(link => {
-      link.addEventListener('click', e => {
-        e.preventDefault();
-        const section = link.getAttribute('data-section');
-        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-        document.getElementById(section + 'Section').classList.add('active');
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
-        if (section === 'configs') loadConfigs();
-        if (section === 'subscriptions') loadSubscriptions();
-        if (section === 'traffic') loadTraffic();
-      });
-    });
-  }
-
-  (async () => {
-    await ensureJwt();
-    await loadUser();
-    // По умолчанию показываем конфиги (mobile-first)
-    await loadConfigs();
-    // Остальные данные подгрузим фоном
-    loadSubscriptions();
-    loadTraffic();
-  })();
-});
 
 class DashboardApp {
     constructor() {
         this.currentUser = null;
         this.authToken = null;
-        this.currentSection = 'dashboard';
         this.telegramWebApp = null;
-        
+        this.currentSection = 'dashboard';
         this.init();
     }
-    
+
     async init() {
         try {
-            // Инициализация Telegram Web App
             this.initTelegramWebApp();
-            
-            // Проверка авторизации
             await this.checkAuth();
-            
-            // Инициализация UI
             this.initUI();
-            
-            // Загрузка данных
-            await this.loadDashboardData();
-            
-        } catch (error) {
-            console.error('Ошибка инициализации:', error);
+            await this.loadSectionData(this.currentSection);
+        } catch (err) {
+            console.error('Ошибка инициализации:', err);
             this.showToast('Ошибка загрузки приложения', 'error');
         }
     }
-    
+
     initTelegramWebApp() {
         if (window.Telegram?.WebApp) {
             this.telegramWebApp = window.Telegram.WebApp;
             this.telegramWebApp.ready();
             this.telegramWebApp.expand();
-            
-            // Настройка темы
+
             if (this.telegramWebApp.colorScheme === 'dark') {
                 document.body.classList.add('telegram-dark');
             }
-            
-            // Настройка главной кнопки
+
             this.telegramWebApp.MainButton.setText('🚀 Открыть VPN');
             this.telegramWebApp.MainButton.show();
-            this.telegramWebApp.MainButton.onClick(() => {
-                window.location.href = '/';
-            });
-            
+            this.telegramWebApp.MainButton.onClick(() => window.location.href = '/');
+
             console.log('Telegram Web App initialized:', this.telegramWebApp.initDataUnsafe);
         }
     }
+
     async checkAuth() {
-    this.authToken = localStorage.getItem('authToken');  // 1. Сначала проверяем локальный токен
-
-    if (this.authToken) {
-        try {
-            const response = await this.apiCall('/auth/me'); // 2. Проверяем токен на сервере
-            this.currentUser = response.user;               // 3. Если токен валидный, сохраняем пользователя
-            return;
-        } catch {
-            localStorage.removeItem('authToken');          // 4. Если токен невалидный, удаляем
+        this.authToken = localStorage.getItem('authToken');
+        if (this.authToken) {
+            try {
+                const data = await this.apiCall('/auth/me');
+                this.currentUser = data.user;
+                return;
+            } catch {
+                localStorage.removeItem('authToken');
+            }
         }
-    }
 
-    // 5. Если токена нет или он невалидный, проверяем данные Telegram
-    if (this.telegramWebApp?.initDataUnsafe?.user) {
-        await this.authenticateWithTelegram();            // 6. Авторизация через Telegram
-    } else {
-        window.location.href = '/';                       // 7. Если нет ничего — редирект на главную
-    }
-}
-        
-        // Если нет токена или он недействителен, пробуем авторизацию через Telegram
-        if (this.telegramWebApp?.initDataUnsafe?.user) {
+        if (this.telegramWebApp?.initData) {
             await this.authenticateWithTelegram();
         } else {
-            // Перенаправляем на главную страницу для авторизации
             window.location.href = '/';
         }
     }
-    
+
     async authenticateWithTelegram() {
         try {
-            const initData = this.telegramWebApp.initData;
-            
             const response = await fetch('/auth/telegram', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    init_data: initData
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ init_data: this.telegramWebApp.initData })
             });
-            
             const data = await response.json();
-            
-            if (response.ok) {
-                this.authToken = data.token;
-                this.currentUser = data.user;
-                localStorage.setItem('authToken', this.authToken);
-                this.showToast('Успешная авторизация!', 'success');
-            } else {
-                throw new Error(data.error || 'Ошибка авторизации');
-            }
-        } catch (error) {
-            console.error('Ошибка авторизации через Telegram:', error);
+            if (!response.ok) throw new Error(data.error || 'Ошибка авторизации');
+            this.authToken = data.token;
+            this.currentUser = data.user;
+            localStorage.setItem('authToken', this.authToken);
+            this.showToast('Успешная авторизация!', 'success');
+        } catch (err) {
+            console.error('Ошибка авторизации через Telegram:', err);
             this.showToast('Ошибка авторизации', 'error');
             window.location.href = '/';
         }
     }
-    
+
     initUI() {
-        // Навигация
         this.initNavigation();
-        
-        // Кнопки
         this.initButtons();
-        
-        // Модальные окна
         this.initModals();
-        
-        // Обновление информации о пользователе
         this.updateUserInfo();
     }
-    
+
     initNavigation() {
-        const navLinks = document.querySelectorAll('.nav-link');
-        navLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', async e => {
                 e.preventDefault();
                 const section = link.dataset.section;
-                this.showSection(section);
+                await this.showSection(section);
             });
         });
     }
-    
+
     initButtons() {
-        // Выход
-        document.getElementById('logoutBtn')?.addEventListener('click', () => {
-            this.logout();
-        });
-        
-        // Продление подписки
-        document.getElementById('renewSubscriptionBtn')?.addEventListener('click', () => {
-            window.location.href = '/';
-        });
-        
-        // Покупка новой подписки
-        document.getElementById('buyNewSubscriptionBtn')?.addEventListener('click', () => {
-            window.location.href = '/';
-        });
-        
-        // Сохранение настроек
-        document.getElementById('saveSettingsBtn')?.addEventListener('click', () => {
-            this.saveSettings();
-        });
-        
-        // Отметить все уведомления как прочитанные
-        document.getElementById('markAllReadBtn')?.addEventListener('click', () => {
-            this.markAllNotificationsRead();
-        });
+        document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
+        document.getElementById('renewSubscriptionBtn')?.addEventListener('click', () => window.location.href = '/');
+        document.getElementById('buyNewSubscriptionBtn')?.addEventListener('click', () => window.location.href = '/');
+        document.getElementById('saveSettingsBtn')?.addEventListener('click', () => this.saveSettings());
+        document.getElementById('markAllReadBtn')?.addEventListener('click', () => this.markAllNotificationsRead());
     }
-    
+
     initModals() {
-        // Закрытие модального окна
-        document.getElementById('configModalClose')?.addEventListener('click', () => {
-            this.closeModal('configModal');
-        });
-        
-        // Закрытие по клику вне модального окна
-        document.getElementById('configModal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'configModal') {
-                this.closeModal('configModal');
-            }
+        document.getElementById('configModalClose')?.addEventListener('click', () => this.closeModal('configModal'));
+        document.getElementById('configModal')?.addEventListener('click', e => {
+            if (e.target.id === 'configModal') this.closeModal('configModal');
         });
     }
-    
+
     updateUserInfo() {
         if (!this.currentUser) return;
-        
-        // Аватар
-        const avatarPlaceholder = document.getElementById('avatarPlaceholder');
-        if (avatarPlaceholder) {
-            const firstLetter = this.currentUser.first_name?.[0] || this.currentUser.username?.[0] || 'U';
-            avatarPlaceholder.textContent = firstLetter.toUpperCase();
-        }
-        
-        // Имя пользователя
+        const avatar = document.getElementById('avatarPlaceholder');
+        if (avatar) avatar.textContent = (this.currentUser.first_name?.[0] || 'U').toUpperCase();
         const username = document.getElementById('username');
-        if (username) {
-            username.textContent = `@${this.currentUser.username || 'user'}`;
-        }
-        
-        // План пользователя (будет обновлен после загрузки подписок)
-        const userPlan = document.getElementById('userPlan');
-        if (userPlan) {
-            userPlan.textContent = 'Загрузка...';
-        }
+        if (username) username.textContent = `@${this.currentUser.username || 'user'}`;
     }
-    
+
     async showSection(sectionName) {
-        // Обновляем активную ссылку
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.classList.remove('active');
-        });
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.querySelector(`[data-section="${sectionName}"]`)?.classList.add('active');
-        
-        // Скрываем все секции
-        document.querySelectorAll('.content-section').forEach(section => {
-            section.classList.remove('active');
-        });
-        
-        // Показываем нужную секцию
-        const targetSection = document.getElementById(`${sectionName}Section`);
-        if (targetSection) {
-            targetSection.classList.add('active');
-            this.currentSection = sectionName;
-            
-            // Загружаем данные для секции
-            await this.loadSectionData(sectionName);
-        }
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        const sectionEl = document.getElementById(`${sectionName}Section`);
+        if (sectionEl) sectionEl.classList.add('active');
+        this.currentSection = sectionName;
+        await this.loadSectionData(sectionName);
     }
-    
+
     async loadSectionData(sectionName) {
         switch (sectionName) {
-            case 'dashboard':
-                await this.loadDashboardData();
-                break;
-            case 'subscriptions':
-                await this.loadSubscriptions();
-                break;
-            case 'configs':
-                await this.loadConfigs();
-                break;
-            case 'traffic':
-                await this.loadTrafficStats();
-                break;
-            case 'notifications':
-                await this.loadNotifications();
-                break;
-            case 'settings':
-                await this.loadSettings();
-                break;
+            case 'dashboard': await this.loadDashboardData(); break;
+            case 'subscriptions': await this.loadSubscriptions(); break;
+            case 'configs': await this.loadConfigs(); break;
+            case 'traffic': await this.loadTrafficStats(); break;
+            case 'notifications': await this.loadNotifications(); break;
+            case 'settings': await this.loadSettings(); break;
         }
     }
-    
+
     async loadDashboardData() {
         try {
-            // Загружаем подписки для dashboard
-            const subscriptionsResponse = await this.apiCall('/api/user/subscriptions');
-            if (subscriptionsResponse.ok) {
-                this.updateDashboardSubscriptions(subscriptionsResponse.subscriptions);
-            }
-            
-            // Загружаем статистику трафика
-            const trafficResponse = await this.apiCall('/api/user/traffic');
-            if (trafficResponse.ok) {
-                this.updateDashboardTraffic(trafficResponse);
-            }
-            
-        } catch (error) {
-            console.error('Ошибка загрузки данных dashboard:', error);
-        }
+            const subs = await this.apiCall('/api/user/subscriptions');
+            this.updateDashboardSubscriptions(subs.subscriptions);
+            const traffic = await this.apiCall('/api/user/traffic');
+            this.updateDashboardTraffic(traffic);
+        } catch (err) { console.error(err); }
     }
+
     
     updateDashboardSubscriptions(subscriptions) {
         const activeSubscription = subscriptions.find(sub => sub.status === 'paid' && !this.isExpired(sub.expires_at));
@@ -1137,13 +755,9 @@ async showQRCode(configId) {
 }
 
 
-// Инициализация приложения
+// Инициализация
 let dashboardApp;
 document.addEventListener('DOMContentLoaded', () => {
     dashboardApp = new DashboardApp();
+    window.dashboardApp = dashboardApp;
 });
-
-
-
-// Экспорт для использования в HTML
-window.dashboardApp = dashboardApp;
