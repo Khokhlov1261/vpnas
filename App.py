@@ -273,29 +273,6 @@ def create_order_internal(email: str, plan_id: int, user_id: int = None, telegra
 # Flask app & routes
 # ---------------------------
 app = Flask(__name__)
-
-CONFIG_DIR = "/securelink/SecureLink/configs"
-
-@app.route("/api/configs/<int:config_id>/download", methods=["GET"])
-def download_config(config_id):
-    try:
-        # формируем имя файла
-        file_path = os.path.join(CONFIG_DIR, f"wg_{config_id}.conf")
-
-        if not os.path.exists(file_path):
-            return jsonify({"error": "Config file not found"}), 404
-
-        # отправляем как attachment (скачивание)
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=f"wg_{config_id}.conf",
-            mimetype="text/plain"
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 def send_telegram_doc_and_qr(bot_token: str, chat_id: int, conf_file: str, plan_name: str):
     try:
         api = f"https://api.telegram.org/bot{bot_token}"

@@ -127,9 +127,33 @@ async function loadSubscriptions() {
   try {
     const token = await ensureJwt();
     if (!token) return;
-    const res = await fetchJSON('/api/user/subscriptions', { headers: { 'Authorization': `Bearer ${token}` } });
+
+    const res = await fetchJSON('/api/user/subscriptions', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
     const listEl = document.getElementById('subscriptionsList');
     listEl.innerHTML = '';
+
+    if (res.configs && res.configs.length > 0) {
+      const sub = res.configs[0]; // берём первую активную подписку
+
+      // Заполняем блок сверху
+      document.getElementById("activeSubscription").textContent = sub.plan;
+      document.getElementById("subscriptionExpiry").textContent = "Действует до: " + sub.expires_at;
+
+      // (дальше твоя логика отрисовки списка в listEl)
+    } else {
+      document.getElementById("activeSubscription").textContent = "Нет активной подписки";
+      document.getElementById("subscriptionExpiry").textContent = "—";
+    }
+
+  } catch (err) {
+    console.error('Ошибка загрузки подписок', err);
+    document.getElementById("activeSubscription").textContent = "Ошибка загрузки";
+    document.getElementById("subscriptionExpiry").textContent = "—";
+  }
+}
 
     const plans = [
       { id: 1, name: '1 месяц', price: 99 },
