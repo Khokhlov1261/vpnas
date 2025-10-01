@@ -725,12 +725,20 @@ class DashboardApp {
 
 async downloadConfig(configId) {
     try {
-        const response = await this.apiCall(`/api/configs/${configId}/download`);
-        if (response.ok && response.url) {
-            window.location.href = response.url; // редирект на скачивание .conf
-        } else {
-            this.showToast('Ошибка при скачивании файла', 'error');
-        }
+        const response = await fetch(`/api/configs/${configId}/download`, {
+            headers: { 'Authorization': `Bearer ${this.authToken}` }
+        });
+        if (!response.ok) throw new Error('Ошибка скачивания');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `securelink_${configId}.conf`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        this.showToast('Конфигурация скачана', 'success');
     } catch (err) {
         console.error('downloadConfig error', err);
         this.showToast('Ошибка скачивания', 'error');
