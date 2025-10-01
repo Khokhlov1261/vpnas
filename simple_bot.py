@@ -408,31 +408,48 @@ INSTRUCTION_TEXT = (
     "Если возникнут вопросы — напишите в поддержку."
 )
 
+import os
+import logging
+from aiogram.types import FSInputFile
+
+# Настройка логирования в консоль
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 @dp.callback_query(lambda c: c.data == "get_config")
 async def send_config(callback: types.CallbackQuery):
     user = callback.from_user
     order = get_latest_paid_order_for_telegram(user.id)
+
     if not order:
+        logger.info(f"No paid orders found for user {user.id}")
         await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
         return
 
-    # Логируем исходный путь к конфигу из order
-    logger.info(f"Order conf_file from DB/logic: {order.get('conf_file')}")
+    logger.info(f"Order from DB: {order}")
 
-    # Прямо указываем путь к рабочему конфигу
-    conf_path = f"/securelink/SecureLink/configs/{order['id']}.conf"
+    # Берём путь к конфигу из order, если есть, иначе формируем по id
+    conf_path = order.get('conf_file') or f"/securelink/SecureLink/configs/{order['id']}.conf"
     logger.info(f"Using config path: {conf_path}")
+
+    # Проверяем, существует ли файл
+    if not os.path.exists(conf_path):
+        logger.error(f"Config file does NOT exist at path: {conf_path}")
+        await callback.answer("Конфигурация не найдена", show_alert=True)
+        return
 
     try:
         doc = FSInputFile(conf_path, filename=f"securelink_{order['id']}.conf")
         caption = f"Тариф: {order['plan']}\n" + INSTRUCTION_TEXT
         await bot.send_document(chat_id=user.id, document=doc, caption=caption)
+        logger.info(f"Config sent to user {user.id}: {conf_path}")
         await callback.answer("Конфиг отправлен")
     except Exception as e:
-        logger.error(f"Failed to send config: {e}")
+        logger.exception(f"Failed to send config to user {user.id}: {e}")
         await callback.answer("Ошибка отправки конфига", show_alert=True)
-        logger.info(f"Order conf_file from DB: {order.get('conf_file')}")
-        logger.info(f"Calculated conf path: {conf_path}")
 ##
 @dp.callback_query(lambda c: c.data == "get_qr")
 async def send_qr(callback: types.CallbackQuery):
