@@ -412,10 +412,13 @@ INSTRUCTION_TEXT = (
 async def send_config(callback: types.CallbackQuery):
     user = callback.from_user
     order = get_latest_paid_order_for_telegram(user.id)
-    if not order or not order.get("conf_file"):
+    if not order:
         await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
         return
-    conf_path = order["conf_file"]
+
+    # Прямо указываем путь к рабочему конфигу
+    conf_path = f"/securelink/SecureLink/configs/{order['id']}.conf"
+
     try:
         doc = FSInputFile(conf_path, filename=f"securelink_{order['id']}.conf")
         caption = f"Тариф: {order['plan']}\n" + INSTRUCTION_TEXT
