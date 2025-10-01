@@ -755,6 +755,19 @@ async showQRCode(configId) {
 }
 
 
+try {
+    const response = await this.apiCall('/api/user/configs');
+    console.log('Configs response:', response);
+    if (response.configs?.length) {
+        this.renderConfigs(response.configs);
+    } else {
+        container.innerHTML = '<div class="empty-state">У вас пока нет конфигураций</div>';
+    }
+} catch (err) {
+    console.error('Ошибка загрузки конфигураций:', err);
+    container.innerHTML = '<div class="error">Ошибка загрузки конфигураций</div>';
+}
+
 // Инициализация
 let dashboardApp;
 document.addEventListener('DOMContentLoaded', () => {
