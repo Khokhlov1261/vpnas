@@ -1080,11 +1080,46 @@ class DashboardApp {
     }
 }
 
+
+async downloadConfig(configId) {
+    try {
+        const response = await this.apiCall(`/api/configs/${configId}/download`);
+        if (response.ok && response.url) {
+            window.location.href = response.url; // редирект на скачивание .conf
+        } else {
+            this.showToast('Ошибка при скачивании файла', 'error');
+        }
+    } catch (err) {
+        console.error('downloadConfig error', err);
+        this.showToast('Ошибка скачивания', 'error');
+    }
+}
+
+async showQRCode(configId) {
+    try {
+        const response = await this.apiCall(`/api/configs/${configId}/qr`);
+        if (response.ok && response.qr_url) {
+            // открыть модальное окно с QR
+            const img = document.getElementById('qrImage');
+            img.src = response.qr_url;
+            this.openModal('configModal');
+        } else {
+            this.showToast('QR-код недоступен', 'error');
+        }
+    } catch (err) {
+        console.error('showQRCode error', err);
+        this.showToast('Ошибка загрузки QR', 'error');
+    }
+}
+
+
 // Инициализация приложения
 let dashboardApp;
 document.addEventListener('DOMContentLoaded', () => {
     dashboardApp = new DashboardApp();
 });
+
+
 
 // Экспорт для использования в HTML
 window.dashboardApp = dashboardApp;
