@@ -745,6 +745,13 @@ async downloadConfig(configId) {
     }
 }
 
+try {
+    const response = await this.apiCall('/api/user/configs');
+    console.log('Configs response:', response);
+} catch (err) {
+    console.error('Ошибка загрузки конфигураций:', err);
+}
+
 async showQRCode(configId) {
     try {
         const response = await this.apiCall(`/api/configs/${configId}/qr`);
