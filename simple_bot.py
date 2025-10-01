@@ -431,6 +431,8 @@ async def send_config(callback: types.CallbackQuery):
     except Exception as e:
         logger.error(f"Failed to send config: {e}")
         await callback.answer("Ошибка отправки конфига", show_alert=True)
+        logger.info(f"Order conf_file from DB: {order.get('conf_file')}")
+        logger.info(f"Calculated conf path: {conf_path}")
 ##
 @dp.callback_query(lambda c: c.data == "get_qr")
 async def send_qr(callback: types.CallbackQuery):
