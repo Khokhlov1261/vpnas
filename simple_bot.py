@@ -416,8 +416,12 @@ async def send_config(callback: types.CallbackQuery):
         await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
         return
 
+    # Логируем исходный путь к конфигу из order
+    logger.info(f"Order conf_file from DB/logic: {order.get('conf_file')}")
+
     # Прямо указываем путь к рабочему конфигу
     conf_path = f"/securelink/SecureLink/configs/{order['id']}.conf"
+    logger.info(f"Using config path: {conf_path}")
 
     try:
         doc = FSInputFile(conf_path, filename=f"securelink_{order['id']}.conf")
