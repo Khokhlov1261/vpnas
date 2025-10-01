@@ -427,7 +427,7 @@ async def send_config(callback: types.CallbackQuery):
     except Exception as e:
         logger.error(f"Failed to send config: {e}")
         await callback.answer("Ошибка отправки конфига", show_alert=True)
-
+##
 @dp.callback_query(lambda c: c.data == "get_qr")
 async def send_qr(callback: types.CallbackQuery):
     user = callback.from_user
