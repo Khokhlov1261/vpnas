@@ -419,69 +419,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# -------------------- Хэндлеры через ENV / память --------------------
+
+# В ENV должны быть:
+# CONFIG_CONTENT - текст конфига WireGuard
+# CONFIG_PLAN - название тарифа для подписи
+# QR_ENABLED - включение генерации QR (true/false)
+
+CONFIG_CONTENT = os.environ.get("CONFIG_CONTENT", "placeholder config content")
+CONFIG_PLAN = os.environ.get("CONFIG_PLAN", "Тариф по умолчанию")
+
 @dp.callback_query(lambda c: c.data == "get_config")
-async def send_config(callback: types.CallbackQuery):
+async def send_config_env(callback: types.CallbackQuery):
     user = callback.from_user
-    order = get_latest_paid_order_for_telegram(user.id)
-
-    if not order:
-        logger.info(f"No paid orders found for user {user.id}")
-        await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
-        return
-
-    logger.info(f"Order from DB: {order}")
-
-    # Берём путь к конфигу из order, если есть, иначе формируем по id
-    conf_path = order.get('conf_file') or f"/securelink/SecureLink/configs/{order['id']}.conf"
-    logger.info(f"Using config path: {conf_path}")
-
-    # Проверяем, существует ли файл
-    if not os.path.exists(conf_path):
-        logger.error(f"Config file does NOT exist at path: {conf_path}")
-        await callback.answer("Конфигурация не найдена", show_alert=True)
-        return
-
     try:
-        doc = FSInputFile(conf_path, filename=f"securelink_{order['id']}.conf")
-        caption = f"Тариф: {order['plan']}\n" + INSTRUCTION_TEXT
+        buf = BytesIO(CONFIG_CONTENT.encode("utf-8"))
+        doc = FSInputFile(buf, filename="securelink.conf")
+        caption = f"Тариф: {CONFIG_PLAN}\n{INSTRUCTION_TEXT}"
         await bot.send_document(chat_id=user.id, document=doc, caption=caption)
-        logger.info(f"Config sent to user {user.id}: {conf_path}")
         await callback.answer("Конфиг отправлен")
+        logger.info(f"Config sent from ENV to user {user.id}")
     except Exception as e:
-        logger.exception(f"Failed to send config to user {user.id}: {e}")
+        logger.exception(f"Failed to send ENV config to user {user.id}: {e}")
         await callback.answer("Ошибка отправки конфига", show_alert=True)
-##
+
 @dp.callback_query(lambda c: c.data == "get_qr")
-async def send_qr(callback: types.CallbackQuery):
+async def send_qr_env(callback: types.CallbackQuery):
     user = callback.from_user
-    order = get_latest_paid_order_for_telegram(user.id)
-
-    if not order:
-        await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
-        return
-
-    conf_path = order.get("conf_file") or f"/securelink/SecureLink/configs/{order['id']}.conf"
-    if not os.path.exists(conf_path):
-        await callback.answer("Конфигурация не найдена", show_alert=True)
-        return
-
     try:
-        # Читаем конфиг и генерируем QR
-        with open(conf_path, "r") as f:
-            conf_text = f.read()
+        import qrcode
         buf = BytesIO()
-        qrcode.make(conf_text).save(buf, format="PNG")
+        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
+        qr.add_data(CONFIG_CONTENT)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+        img.save(buf, "PNG")
         buf.seek(0)
-
-        # Создаем FSInputFile для отправки
-        qr_file = FSInputFile(buf, filename=f"securelink_{order['id']}.png")
-        caption = f"QR для импорта конфига (тариф: {order['plan']}).\n" + INSTRUCTION_TEXT
-
+        qr_file = FSInputFile(buf, filename="securelink_qr.png")
+        caption = f"QR для импорта конфига (тариф: {CONFIG_PLAN}).\n{INSTRUCTION_TEXT}"
         await bot.send_photo(chat_id=user.id, photo=qr_file, caption=caption)
         await callback.answer("QR отправлен")
-        logger.info(f"QR sent to user {user.id} for order {order['id']}")
+        logger.info(f"QR sent from ENV to user {user.id}")
     except Exception as e:
-        logger.exception(f"Failed to send QR to user {user.id}: {e}")
+        logger.exception(f"Failed to send ENV QR to user {user.id}: {e}")
         await callback.answer("Ошибка отправки QR", show_alert=True)
 
 # -------------------- Запуск бота --------------------
