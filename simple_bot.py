@@ -29,6 +29,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+INSTRUCTION_TEXT="вадлимовалди"
+
 # -------------------- Конфигурация --------------------
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru/dashboard")
@@ -374,86 +377,81 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.answer()
 
 # -------------------- Отправка конфига --------------------
-def get_latest_paid_order_for_telegram(telegram_id):
-    CONFIG_DIR = "/securelink/SecureLink/configs"  # твоя папка с конфигами
+CONFIG_DIR = "/securelink/SecureLink/configs"  # твоя папка с конфигами
 
-    def get_latest_config_for_user(telegram_id):
-        """
-        Находим последний оплаченный конфиг в папке CONFIG_DIR по telegram_id
-        """
-        conn = get_db_connection()
-        if not conn:
-            return None
-        try:
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT conf_file, plan
-                FROM orders
-                WHERE telegram_id=%s AND status='paid' AND conf_file IS NOT NULL
-                ORDER BY created_at DESC
-                LIMIT 1
-            """, (telegram_id,))
-            row = cur.fetchone()
-            if row:
-                conf_file, plan_name = row
-                # Проверяем, что файл существует в папке configs
-                if os.path.exists(conf_file) and conf_file.startswith(CONFIG_DIR):
-                    return conf_file, plan_name
-        finally:
-            conn.close()
-        return None, None
+def get_latest_config_for_user(telegram_id):
+    """
+    Находим последний оплаченный конфиг в папке CONFIG_DIR по telegram_id
+    """
+    conn = get_db_connection()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT conf_file, plan
+            FROM orders
+            WHERE telegram_id=%s AND status='paid' AND conf_file IS NOT NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (telegram_id,))
+        row = cur.fetchone()
+        if row:
+            conf_file, plan_name = row
+            # Проверяем, что файл существует в папке configs
+            if os.path.exists(conf_file) and conf_file.startswith(CONFIG_DIR):
+                return conf_file, plan_name
+    finally:
+        conn.close()
+    return None, None
 
-    @dp.callback_query(lambda c: c.data == "get_config")
-    async def send_config_file(callback: types.CallbackQuery):
-        user = callback.from_user
-        conf_file, plan_name = get_latest_config_for_user(user.id)
-        if not conf_file:
-            await callback.answer("Конфиг не найден", show_alert=True)
-            return
-        try:
-            doc = FSInputFile(conf_file, filename=os.path.basename(conf_file))
-            caption = f"Тариф: {plan_name}\n{INSTRUCTION_TEXT}"
-            await bot.send_document(chat_id=user.id, document=doc, caption=caption)
-            await callback.answer("Конфиг отправлен")
-            logger.info(f"Config {conf_file} sent to user {user.id}")
-        except Exception as e:
-            logger.exception(f"Failed to send config to user {user.id}: {e}")
-            await callback.answer("Ошибка отправки конфига", show_alert=True)
+@dp.callback_query(lambda c: c.data == "get_config")
+async def send_config_file(callback: types.CallbackQuery):
+    user = callback.from_user
+    conf_file, plan_name = get_latest_config_for_user(user.id)
+    if not conf_file:
+        await callback.answer("Конфиг не найден", show_alert=True)
+        return
+    try:
+        doc = FSInputFile(conf_file, filename=os.path.basename(conf_file))
+        caption = f"Тариф: {plan_name}\n{INSTRUCTION_TEXT}"
+        await bot.send_document(chat_id=user.id, document=doc, caption=caption)
+        await callback.answer("Конфиг отправлен")
+        logger.info(f"Config {conf_file} sent to user {user.id}")
+    except Exception as e:
+        logger.exception(f"Failed to send config to user {user.id}: {e}")
+        await callback.answer("Ошибка отправки конфига", show_alert=True)
 
-    @dp.callback_query(lambda c: c.data == "get_qr")
-    async def send_config_qr(callback: types.CallbackQuery):
-        user = callback.from_user
-        conf_file, plan_name = get_latest_config_for_user(user.id)
-        if not conf_file:
-            await callback.answer("Конфиг не найден", show_alert=True)
-            return
-        try:
-            with open(conf_file, "r") as f:
-                conf_text = f.read()
-            import qrcode
-            buf = BytesIO()
-            qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
-            qr.add_data(conf_text)
-            qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-            img.save(buf, "PNG")
-            buf.seek(0)
-            qr_file = FSInputFile(buf, filename=f"{os.path.basename(conf_file)}.png")
-            caption = f"QR для импорта конфига (тариф: {plan_name}).\n{INSTRUCTION_TEXT}"
-            await bot.send_photo(chat_id=user.id, photo=qr_file, caption=caption)
-            await callback.answer("QR отправлен")
-            logger.info(f"QR for {conf_file} sent to user {user.id}")
-        except Exception as e:
-            logger.exception(f"Failed to send QR to user {user.id}: {e}")
-            await callback.answer("Ошибка отправки QR", show_alert=True)
+@dp.callback_query(lambda c: c.data == "get_qr")
+async def send_config_qr(callback: types.CallbackQuery):
+    user = callback.from_user
+    conf_file, plan_name = get_latest_config_for_user(user.id)
+    if not conf_file:
+        await callback.answer("Конфиг не найден", show_alert=True)
+        return
+    try:
+        with open(conf_file, "r") as f:
+            conf_text = f.read()
+        import qrcode
+        buf = BytesIO()
+        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
+        qr.add_data(conf_text)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+        img.save(buf, "PNG")
+        buf.seek(0)
+        qr_file = FSInputFile(buf, filename=f"{os.path.basename(conf_file)}.png")
+        caption = f"QR для импорта конфига (тариф: {plan_name}).\n{INSTRUCTION_TEXT}"
+        await bot.send_photo(chat_id=user.id, photo=qr_file, caption=caption)
+        await callback.answer("QR отправлен")
+        logger.info(f"QR for {conf_file} sent to user {user.id}")
+    except Exception as e:
+        logger.exception(f"Failed to send QR to user {user.id}: {e}")
+        await callback.answer("Ошибка отправки QR", show_alert=True)
 
-INSTRUCTION_TEXT = (
-    "Инструкция по подключению:\n"
-    "1) Установите WireGuard (iOS/Android/macOS/Windows).\n"
-    "2) Импортируйте присланный .conf файл.\n"
-    "3) Включите соединение.\n"
-    "Если возникнут вопросы — напишите в поддержку."
-)
+
+
+
 
 import os
 import logging
@@ -476,40 +474,7 @@ logger = logging.getLogger(__name__)
 CONFIG_CONTENT = os.environ.get("CONFIG_CONTENT", "placeholder config content")
 CONFIG_PLAN = os.environ.get("CONFIG_PLAN", "Тариф по умолчанию")
 
-@dp.callback_query(lambda c: c.data == "get_config")
-async def send_config_env(callback: types.CallbackQuery):
-    user = callback.from_user
-    try:
-        buf = BytesIO(CONFIG_CONTENT.encode("utf-8"))
-        doc = FSInputFile(buf, filename="securelink.conf")
-        caption = f"Тариф: {CONFIG_PLAN}\n{INSTRUCTION_TEXT}"
-        await bot.send_document(chat_id=user.id, document=doc, caption=caption)
-        await callback.answer("Конфиг отправлен")
-        logger.info(f"Config sent from ENV to user {user.id}")
-    except Exception as e:
-        logger.exception(f"Failed to send ENV config to user {user.id}: {e}")
-        await callback.answer("Ошибка отправки конфига", show_alert=True)
 
-@dp.callback_query(lambda c: c.data == "get_qr")
-async def send_qr_env(callback: types.CallbackQuery):
-    user = callback.from_user
-    try:
-        import qrcode
-        buf = BytesIO()
-        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
-        qr.add_data(CONFIG_CONTENT)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-        img.save(buf, "PNG")
-        buf.seek(0)
-        qr_file = FSInputFile(buf, filename="securelink_qr.png")
-        caption = f"QR для импорта конфига (тариф: {CONFIG_PLAN}).\n{INSTRUCTION_TEXT}"
-        await bot.send_photo(chat_id=user.id, photo=qr_file, caption=caption)
-        await callback.answer("QR отправлен")
-        logger.info(f"QR sent from ENV to user {user.id}")
-    except Exception as e:
-        logger.exception(f"Failed to send ENV QR to user {user.id}: {e}")
-        await callback.answer("Ошибка отправки QR", show_alert=True)
 
 # -------------------- Запуск бота --------------------
 async def main():
