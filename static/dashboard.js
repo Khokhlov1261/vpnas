@@ -144,14 +144,53 @@ class DashboardApp {
         }
     }
 
-    async loadDashboardData() {
-        try {
-            const subs = await this.apiCall('/api/user/subscriptions');
-            this.updateDashboardSubscriptions(subs.subscriptions);
-            const traffic = await this.apiCall('/api/user/traffic');
-            this.updateDashboardTraffic(traffic);
-        } catch (err) { console.error(err); }
-    }
+   async loadDashboardData() {
+    try {
+        const data = await fetch("/admin/stats").then(r => r.json());
+
+        // системные метрики
+        document.getElementById("cpu").innerText = data.cpu_percent;
+        document.getElementById("ram").innerText = data.ram_percent;
+        document.getElementById("disk").innerText = data.disk_percent;
+
+        // ищем клиента по username/email
+        const client = data.clients.find(c => c.email === this.currentUser.email);
+        if (!client) return;
+
+        // трафик
+        const todayTrafficEl = document.getElementById('todayTraffic');
+        const trafficDetailsEl = document.getElementById('trafficDetails');
+        const connectionStatusEl = document.getElementById('connectionStatus');
+        const connectionIPEl = document.getElementById('connectionIP');
+
+        const totalTraffic = (client.rx_bytes || 0) + (client.tx_bytes || 0);
+        if (todayTrafficEl) todayTrafficEl.textContent = formatBytes(totalTraffic);
+        if (trafficDetailsEl) trafficDetailsEl.textContent = `↓ ${formatBytes(client.rx_bytes)} ↑ ${formatBytes(client.tx_bytes)}`;
+
+        if (connectionStatusEl) {
+            connectionStatusEl.textContent = client.online ? 'Онлайн' : 'Офлайн';
+            connectionStatusEl.className = `stat-value ${client.online ? 'online' : 'offline'}`;
+        }
+        if (connectionIPEl) {
+            connectionIPEl.textContent = client.client_ip || '—';
+        }
+
+   renderClientTable(client) {
+    const tbody = document.querySelector("#traffic-table tbody");
+    if (!tbody) return;
+    tbody.innerHTML = `
+        <tr id="client-${client.public_key}">
+            <td data-label="Email">${client.email}</td>
+            <td data-label="Plan">${client.plan}</td>
+            <td data-label="Client IP">${client.client_ip}</td>
+            <td data-label="Public Key">${client.public_key}</td>
+            <td data-label="RX">${formatBytes(client.rx_bytes)}</td>
+            <td data-label="TX">${formatBytes(client.tx_bytes)}</td>
+            <td class="${client.online ? 'online' : 'offline'}" data-label="Online">${client.online ? 'Да' : 'Нет'}</td>
+            <td data-label="Last seen">${formatLastSeen(client.last_seen, client.online)}</td>
+        </tr>
+    `;
+}
 
 
     updateDashboardSubscriptions(subscriptions) {
