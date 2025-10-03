@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # -------------------- Конфигурация --------------------
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://truesocial.ru/dashboard")
-BACKEND_URL = os.environ.get("BACKEND_URL", os.environ.get("WEB_BACKEND_URL", "http://app:9000"))
+BACKEND_URL = os.environ.get("BACKEND_URL", os.environ.get("WEB_BACKEND_URL", "truesocial.ru"))
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "Securelinkvpn_bot")
 
 PLANS_UI = {
