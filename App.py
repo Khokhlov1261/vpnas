@@ -43,7 +43,7 @@ load_dotenv()  # это заставит Python читать .env
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
 APP_PORT = int(os.getenv("APP_PORT", 9000))
 DEBUG = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
-CONF_DIR = os.getenv("CONF_DIR", "/securelink/SecureLink/configs")
+CONF_DIR = os.getenv("CONF_DIR", "/configs")
 
 # -------------------
 # Database
