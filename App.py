@@ -28,7 +28,7 @@ from yookassa import Configuration, Payment
 from user_manager import UserManager
 from services.orders import OrderService, PLANS
 from dotenv import load_dotenv
-from app import config as cfg
+
 from app.db import init_db_pool as _init_db_pool, get_conn as _get_conn
 from app import wg as wgmod
 
@@ -39,42 +39,57 @@ load_dotenv()  # это заставит Python читать .env
 # ---------------------------
 # CONFIG
 # ---------------------------
-APP_HOST = cfg.APP_HOST
-APP_PORT = cfg.APP_PORT
-DEBUG = cfg.DEBUG
+# App
+APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
+APP_PORT = int(os.getenv("APP_PORT", 9000))
+DEBUG = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
+CONF_DIR = os.getenv("CONF_DIR", "/securelink/SecureLink/configs")
 
-CONF_DIR = cfg.CONF_DIR
-DATABASE_URL = cfg.DATABASE_URL
-PG_HOST = cfg.PG_HOST
-PG_PORT = cfg.PG_PORT
-PG_DB = cfg.PG_DB
-PG_USER = cfg.PG_USER
-PG_PASSWORD = cfg.PG_PASSWORD
+# -------------------
+# Database
+DATABASE_URL = os.getenv("DATABASE_URL")
+PG_HOST = os.getenv("PG_HOST", "localhost")
+PG_PORT = int(os.getenv("PG_PORT", 5432))
+PG_DB = os.getenv("PG_DB", "securelink")
+PG_USER = os.getenv("PG_USER", "securelink")
+PG_PASSWORD = os.getenv("PG_PASSWORD")
 
+# -------------------
 # WireGuard / service settings
-WG_CONFIG_PATH = cfg.WG_CONFIG_PATH
-WG_INTERFACE = cfg.WG_INTERFACE
-SERVER_PUBLIC_KEY = cfg.SERVER_PUBLIC_KEY
-SERVER_ENDPOINT = cfg.SERVER_ENDPOINT
-DNS_ADDR = cfg.DNS_ADDR
+WG_CONFIG_PATH = os.getenv("WG_CONFIG_PATH", "/etc/wireguard/wg0.conf")
+WG_INTERFACE = os.getenv("WG_INTERFACE", "wg0")
+SERVER_PUBLIC_KEY = os.getenv("SERVER_PUBLIC_KEY")
+SERVER_ENDPOINT = os.getenv("SERVER_ENDPOINT")
+DNS_ADDR = os.getenv("DNS_ADDR", "8.8.8.8")
+WG_CLIENT_NETWORK_CIDR = os.getenv("WG_CLIENT_NETWORK_CIDR", "10.0.0.0/24")
+WG_CLIENT_NETWORK6_CIDR = os.getenv("WG_CLIENT_NETWORK6_CIDR", "")
 
+# -------------------
 # Yookassa credentials
-YOOKASSA_SHOP_ID = cfg.YOOKASSA_SHOP_ID
-YOOKASSA_SECRET_KEY = cfg.YOOKASSA_SECRET_KEY
-Configuration.account_id = YOOKASSA_SHOP_ID
-Configuration.secret_key = YOOKASSA_SECRET_KEY
+YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
+YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
 
+# Если используешь класс Configuration из SDK:
+try:
+    from yookassa import Configuration
+    Configuration.account_id = YOOKASSA_SHOP_ID
+    Configuration.secret_key = YOOKASSA_SECRET_KEY
+except ImportError:
+    pass  # если SDK нет — просто пропускаем
+
+# -------------------
 # SMTP
-SMTP_SERVER = cfg.SMTP_SERVER
-SMTP_PORT = cfg.SMTP_PORT
-SMTP_USER = cfg.SMTP_USER
-SMTP_PASSWORD = cfg.SMTP_PASSWORD
-FROM_EMAIL = cfg.FROM_EMAIL
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
 
-# JWT and Telegram
-JWT_SECRET = cfg.JWT_SECRET
-TELEGRAM_BOT_TOKEN = cfg.TELEGRAM_BOT_TOKEN
-TELEGRAM_WEBHOOK_URL = cfg.TELEGRAM_WEBHOOK_URL
+# -------------------
+# JWT / Telegram
+JWT_SECRET = os.getenv("JWT_SECRET")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_WEBHOOK_URL = os.getenv("TELEGRAM_WEBHOOK_URL")
 
 
 # Logging
