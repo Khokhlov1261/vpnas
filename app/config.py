@@ -6,10 +6,11 @@ load_dotenv()
 
 # -------------------
 # App
+# App
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
 APP_PORT = int(os.getenv("APP_PORT", 9000))
 DEBUG = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
-CONF_DIR = os.getenv("CONF_DIR", "configs")
+CONF_DIR = os.getenv("CONF_DIR", "/securelink/SecureLink/configs")
 
 # -------------------
 # Database
@@ -25,7 +26,7 @@ PG_PASSWORD = os.getenv("PG_PASSWORD")
 WG_CONFIG_PATH = os.getenv("WG_CONFIG_PATH", "/etc/wireguard/wg0.conf")
 WG_INTERFACE = os.getenv("WG_INTERFACE", "wg0")
 SERVER_PUBLIC_KEY = os.getenv("SERVER_PUBLIC_KEY")
-SERVER_ENDPOINT = os.getenv("SERVER_ENDPOINT")
+SERVER_ENDPOINT = os.getenv("SERVER_ENDPOINT")  # <- подтянется из .env
 DNS_ADDR = os.getenv("DNS_ADDR", "8.8.8.8")
 WG_CLIENT_NETWORK_CIDR = os.getenv("WG_CLIENT_NETWORK_CIDR", "10.0.0.0/24")
 WG_CLIENT_NETWORK6_CIDR = os.getenv("WG_CLIENT_NETWORK6_CIDR", "")
