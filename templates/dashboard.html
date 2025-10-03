@@ -46,7 +46,54 @@
                         Dashboard
                     </a>
                 </li>
-                <!-- Другие пункты меню без изменений -->
+                <li>
+                    <a href="#subscriptions" class="nav-link" data-section="subscriptions">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4"></path>
+                            <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"></path>
+                            <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"></path>
+                            <path d="M12 3c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3"></path>
+                            <path d="M12 21c0-1 1-3 3-3s3 2 3 3-1 3-3 3-3-2-3-3"></path>
+                        </svg>
+                        Подписки
+                    </a>
+                </li>
+                <li>
+                    <a href="#configs" class="nav-link" data-section="configs">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                        </svg>
+                        Конфигурации
+                    </a>
+                </li>
+                <li>
+                    <a href="#traffic" class="nav-link" data-section="traffic">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18"></path>
+                            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+                        </svg>
+                        Трафик
+                    </a>
+                </li>
+                <li>
+                    <a href="#notifications" class="nav-link" data-section="notifications">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        Уведомления
+                        <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#settings" class="nav-link" data-section="settings">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        Настройки
+                    </a>
+                </li>
             </ul>
 
             <div class="sidebar-footer">
@@ -73,7 +120,48 @@
             <!-- Dashboard Section -->
             <div class="content-section active" id="dashboardSection">
                 <div class="dashboard-grid">
-                    <!-- Статистика подписки, трафика, подключения -->
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4"></path>
+                                <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"></path>
+                                <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"></path>
+                            </svg>
+                        </div>
+                        <div class="stats-content">
+                            <h3>Активная подписка</h3>
+                            <div class="stat-value" id="activeSubscription">Загрузка...</div>
+                            <div class="stat-label" id="subscriptionExpiry">—</div>
+                        </div>
+                    </div>
+
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"></path>
+                                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+                            </svg>
+                        </div>
+                        <div class="stats-content">
+                            <h3>Трафик сегодня</h3>
+                            <div class="stat-value" id="todayTraffic">0 MB</div>
+                            <div class="stat-label" id="trafficDetails">↓ 0 MB ↑ 0 MB</div>
+                        </div>
+                    </div>
+
+                    <div class="stats-card">
+                        <div class="stats-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M8 12l2 2 4-4"></path>
+                            </svg>
+                        </div>
+                        <div class="stats-content">
+                            <h3>Статус подключения</h3>
+                            <div class="stat-value" id="connectionStatus">Проверка...</div>
+                            <div class="stat-label" id="connectionIP">—</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="dashboard-charts">
@@ -99,8 +187,8 @@
                 </div>
             </div>
 
-            <!-- Quick Config Section -->
-            <div class="content-section" id="configsSection">
+            <!-- Quick Config (Mobile-first) -->
+            <div class="content-section active" id="configsSection">
                 <div class="section-header">
                     <h2>Ваши конфигурации</h2>
                 </div>
@@ -121,16 +209,114 @@
                 </div>
             </div>
 
-            <!-- Остальные секции -->
-            <div class="content-section" id="trafficSection">...</div>
-            <div class="content-section" id="notificationsSection">...</div>
-            <div class="content-section" id="settingsSection">...</div>
+            <!-- Traffic Section -->
+            <div class="content-section" id="trafficSection">
+                <div class="section-header">
+                    <h2>Статистика трафика</h2>
+                    <div class="traffic-filters">
+                        <select id="trafficPeriod">
+                            <option value="today">Сегодня</option>
+                            <option value="week">Неделя</option>
+                            <option value="month">Месяц</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="traffic-stats" id="trafficStats">
+                    <div class="loading">Загрузка статистики...</div>
+                </div>
+            </div>
+
+            <!-- Notifications Section -->
+            <div class="content-section" id="notificationsSection">
+                <div class="section-header">
+                    <h2>Уведомления</h2>
+                    <button class="btn btn-ghost" id="markAllReadBtn" style="display: none;">
+                        Отметить все как прочитанные
+                    </button>
+                </div>
+                <div class="notifications-list" id="notificationsList">
+                    <div class="loading">Загрузка уведомлений...</div>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="content-section" id="settingsSection">
+                <div class="section-header">
+                    <h2>Настройки</h2>
+                </div>
+                <div class="settings-content">
+                    <div class="settings-group">
+                        <h3>Профиль</h3>
+                        <div class="setting-item">
+                            <label>Имя пользователя</label>
+                            <input type="text" id="usernameInput" readonly>
+                        </div>
+                        <div class="setting-item">
+                            <label>Email</label>
+                            <input type="email" id="emailInput">
+                        </div>
+                        <div class="setting-item">
+                            <label>Язык</label>
+                            <select id="languageSelect">
+                                <option value="ru">Русский</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Уведомления</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="emailNotifications">
+                                Email уведомления
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="telegramNotifications">
+                                Telegram уведомления
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" id="saveSettingsBtn">
+                            Сохранить настройки
+                        </button>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
+    <!-- Toast уведомления -->
     <div class="toast-container" id="toastContainer"></div>
-    <div class="modal" id="configModal">...</div>
 
+    <!-- Модальные окна -->
+    <div class="modal" id="configModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Конфигурация WireGuard</h3>
+                <button class="modal-close" id="configModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="config-actions">
+                    <button class="btn btn-primary" id="downloadConfigBtn">
+                        Скачать .conf файл
+                    </button>
+                    <button class="btn btn-secondary" id="showQRBtn">
+                        Показать QR-код
+                    </button>
+                </div>
+                <div class="qr-container" id="qrContainer" style="display: none;">
+                    <canvas id="qrCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
