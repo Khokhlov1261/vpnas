@@ -288,11 +288,13 @@ def create_order_internal(email: str, plan_id: int):
         if price <= 0:
             return None, None, "Некорректный тариф"
 
-        # генерируем уникальный конфиг
+        # путь к конфигу
         conf_file = os.path.join(CONF_DIR, f"{email}_{plan_id}.conf")
+
+        # генерация конфига
         generate_wireguard_conf(conf_file, email, plan_id)
 
-        # пишем заказ в базу
+        # запись в БД
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -1126,6 +1128,38 @@ def free_trial():
         logger.exception("Failed to send free-trial email")
 
     return jsonify({"message": "Бесплатный пробный период активирован! Конфигурация отправлена на email (Иногда письмо приходит в СПАМ)."})
+
+
+import os
+import secrets
+
+CONF_DIR = os.environ.get("CONF_DIR", "configs")
+
+def generate_wireguard_conf(conf_path: str, email: str, plan_id: int):
+    """Генерация файла WireGuard-конфига"""
+    private_key = secrets.token_urlsafe(32)[:32]  # псевдо-ключ для примера
+    public_key = ""  # можно добавить если будешь хранить
+    endpoint = os.environ.get("WG_ENDPOINT", "vpn.example.com:51820")
+
+    conf_text = f"""[Interface]
+PrivateKey = {private_key}
+Address = 10.0.{plan_id}.{secrets.randbelow(200)+2}/32
+DNS = 8.8.8.8
+
+[Peer]
+PublicKey = {public_key}
+Endpoint = {endpoint}
+AllowedIPs = 0.0.0.0/0
+# Email: {email}
+# Plan: {plan_id}
+"""
+
+    os.makedirs(os.path.dirname(conf_path), exist_ok=True)
+    with open(conf_path, "w") as f:
+        f.write(conf_text)
+
+    return conf_path
+
 
 # ---------------------------
 # Startup
