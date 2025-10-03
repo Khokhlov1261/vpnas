@@ -455,22 +455,33 @@ async def send_config(callback: types.CallbackQuery):
 async def send_qr(callback: types.CallbackQuery):
     user = callback.from_user
     order = get_latest_paid_order_for_telegram(user.id)
-    if not order or not order.get("conf_file"):
+
+    if not order:
         await callback.answer("Оплаченных конфигов не найдено", show_alert=True)
         return
-    conf_path = order["conf_file"]
+
+    conf_path = order.get("conf_file") or f"/securelink/SecureLink/configs/{order['id']}.conf"
+    if not os.path.exists(conf_path):
+        await callback.answer("Конфигурация не найдена", show_alert=True)
+        return
+
     try:
+        # Читаем конфиг и генерируем QR
         with open(conf_path, "r") as f:
             conf_text = f.read()
         buf = BytesIO()
         qrcode.make(conf_text).save(buf, format="PNG")
         buf.seek(0)
-        photo = BufferedInputFile(buf.read(), filename=f"securelink_{order['id']}.png")
+
+        # Создаем FSInputFile для отправки
+        qr_file = FSInputFile(buf, filename=f"securelink_{order['id']}.png")
         caption = f"QR для импорта конфига (тариф: {order['plan']}).\n" + INSTRUCTION_TEXT
-        await bot.send_photo(chat_id=user.id, photo=photo, caption=caption)
+
+        await bot.send_photo(chat_id=user.id, photo=qr_file, caption=caption)
         await callback.answer("QR отправлен")
+        logger.info(f"QR sent to user {user.id} for order {order['id']}")
     except Exception as e:
-        logger.error(f"Failed to send qr: {e}")
+        logger.exception(f"Failed to send QR to user {user.id}: {e}")
         await callback.answer("Ошибка отправки QR", show_alert=True)
 
 # -------------------- Запуск бота --------------------
