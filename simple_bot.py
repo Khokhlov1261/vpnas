@@ -375,30 +375,77 @@ async def back_to_main(callback: types.CallbackQuery):
 
 # -------------------- Отправка конфига --------------------
 def get_latest_paid_order_for_telegram(telegram_id):
-    conn = get_db_connection()
-    if not conn:
-        return None
-    cur = conn.cursor()
-    cur.execute(
+    CONFIG_DIR = "/securelink/SecureLink/configs"  # твоя папка с конфигами
+
+    def get_latest_config_for_user(telegram_id):
         """
-        SELECT id, conf_file, plan, expires_at
-        FROM orders
-        WHERE telegram_id = %s AND status = 'paid' AND conf_file IS NOT NULL
-        ORDER BY created_at DESC
-        LIMIT 1
-        """,
-        (telegram_id,)
-    )
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        return None
-    return {
-        "id": row[0],
-        "conf_file": row[1],
-        "plan": row[2],
-        "expires_at": row[3]
-    }
+        Находим последний оплаченный конфиг в папке CONFIG_DIR по telegram_id
+        """
+        conn = get_db_connection()
+        if not conn:
+            return None
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT conf_file, plan
+                FROM orders
+                WHERE telegram_id=%s AND status='paid' AND conf_file IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (telegram_id,))
+            row = cur.fetchone()
+            if row:
+                conf_file, plan_name = row
+                # Проверяем, что файл существует в папке configs
+                if os.path.exists(conf_file) and conf_file.startswith(CONFIG_DIR):
+                    return conf_file, plan_name
+        finally:
+            conn.close()
+        return None, None
+
+    @dp.callback_query(lambda c: c.data == "get_config")
+    async def send_config_file(callback: types.CallbackQuery):
+        user = callback.from_user
+        conf_file, plan_name = get_latest_config_for_user(user.id)
+        if not conf_file:
+            await callback.answer("Конфиг не найден", show_alert=True)
+            return
+        try:
+            doc = FSInputFile(conf_file, filename=os.path.basename(conf_file))
+            caption = f"Тариф: {plan_name}\n{INSTRUCTION_TEXT}"
+            await bot.send_document(chat_id=user.id, document=doc, caption=caption)
+            await callback.answer("Конфиг отправлен")
+            logger.info(f"Config {conf_file} sent to user {user.id}")
+        except Exception as e:
+            logger.exception(f"Failed to send config to user {user.id}: {e}")
+            await callback.answer("Ошибка отправки конфига", show_alert=True)
+
+    @dp.callback_query(lambda c: c.data == "get_qr")
+    async def send_config_qr(callback: types.CallbackQuery):
+        user = callback.from_user
+        conf_file, plan_name = get_latest_config_for_user(user.id)
+        if not conf_file:
+            await callback.answer("Конфиг не найден", show_alert=True)
+            return
+        try:
+            with open(conf_file, "r") as f:
+                conf_text = f.read()
+            import qrcode
+            buf = BytesIO()
+            qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
+            qr.add_data(conf_text)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+            img.save(buf, "PNG")
+            buf.seek(0)
+            qr_file = FSInputFile(buf, filename=f"{os.path.basename(conf_file)}.png")
+            caption = f"QR для импорта конфига (тариф: {plan_name}).\n{INSTRUCTION_TEXT}"
+            await bot.send_photo(chat_id=user.id, photo=qr_file, caption=caption)
+            await callback.answer("QR отправлен")
+            logger.info(f"QR for {conf_file} sent to user {user.id}")
+        except Exception as e:
+            logger.exception(f"Failed to send QR to user {user.id}: {e}")
+            await callback.answer("Ошибка отправки QR", show_alert=True)
 
 INSTRUCTION_TEXT = (
     "Инструкция по подключению:\n"

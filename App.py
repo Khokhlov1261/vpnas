@@ -282,38 +282,8 @@ def calculate_expiry_extended(plan_type: str, current_expiry):
 
 order_service: OrderService = None
 
-def create_order_internal(email: str, plan_id: int):
-    try:
-        plan_name, price, duration = PLANS.get(plan_id, ("неизвестно", 0, None))
-        if price <= 0:
-            return None, None, "Некорректный тариф"
-
-        # путь к конфигу
-        conf_file = os.path.join(CONF_DIR, f"{email}_{plan_id}.conf")
-
-        # генерация конфига
-        generate_wireguard_conf(conf_file, email, plan_id)
-
-        # запись в БД
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO orders (email, plan, status, conf_file)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (email, plan) DO UPDATE
-                        SET status=EXCLUDED.status,
-                            conf_file=EXCLUDED.conf_file
-                    RETURNING id;
-                    """,
-                    (email, plan_name, "pending", conf_file)
-                )
-                conn.commit()
-
-        return conf_file, plan_name, None
-    except Exception as e:
-        logger.exception("Ошибка при создании заказа")
-        return None, None, str(e)
+def create_order_internal(email: str, plan_id: int, user_id: int = None, telegram_id: int = None):
+    return order_service.create_order_internal(email, plan_id, user_id=user_id, telegram_id=telegram_id)
 
 # ---------------------------
 # Flask app & routes
@@ -882,54 +852,34 @@ def yookassa_webhook():
         if payment.get("status") == "succeeded":
             email = payment.get("metadata", {}).get("email")
             plan_id = payment.get("metadata", {}).get("plan_id")
-
             if email and plan_id:
                 try:
                     plan_id = int(plan_id)
-
-                    # создаём заказ и получаем путь к конфигу
-                    conf_file, plan_name, err = create_order_internal(email, plan_id)
-                    if err or not conf_file:
-                        logger.error("Ошибка при создании заказа: %s", err or "conf_file is empty")
-                        return jsonify({"error": "Не удалось создать заказ"}), 500
-
-                    # обновляем заказ как оплаченный
-                    with get_conn() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                """
-                                UPDATE orders
-                                SET status='paid', conf_file=%s
-                                WHERE email=%s AND plan=%s
-                                RETURNING id, telegram_id;
-                                """,
-                                (conf_file, email, plan_name)
-                            )
-                            row = cur.fetchone()
-                            conn.commit()
-
-                    if row:
-                        order_id, telegram_id = row
-                        bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
-
-                        # если юзер уже запускал бота → отправляем конфиг
-                        if bot_token and telegram_id and os.path.exists(conf_file):
-                            try:
-                                send_telegram_doc_and_qr(bot_token, int(telegram_id), conf_file, plan_name)
-                            except Exception:
-                                logger.exception("Не удалось отправить конфиг в Telegram")
-                        else:
-                            logger.info("telegram_id отсутствует — конфиг доступен только в ЛК")
-
+                    token, err = create_order_internal(email, plan_id)
+                    if err:
+                        logger.error("Ошибка при создании заказа из webhook: %s", err)
+                    # Авторассылка в Telegram, если к заказу привязан telegram_id
+                    try:
+                        with get_conn() as conn:
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "SELECT id, conf_file, telegram_id, plan FROM orders WHERE email=%s AND status='paid' ORDER BY id DESC LIMIT 1;",
+                                    (email,)
+                                )
+                                row = cur.fetchone()
+                                if row:
+                                    order_id, conf_file, telegram_id, plan_name = row
+                                    bot_token = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+                                    if bot_token and telegram_id and conf_file and os.path.exists(conf_file):
+                                        send_telegram_doc_and_qr(bot_token, int(telegram_id), conf_file, plan_name)
+                    except Exception:
+                        logger.exception("Failed to auto-send config to Telegram")
                 except Exception:
                     logger.exception("Ошибка обработки webhook")
-
         return jsonify({"status": "ok"})
-
     except Exception:
         logger.exception("Ошибка в webhook")
         return jsonify({"error": "internal"}), 500
-
 
 @app.route("/payment-callback")
 def payment_callback():
@@ -1128,38 +1078,6 @@ def free_trial():
         logger.exception("Failed to send free-trial email")
 
     return jsonify({"message": "Бесплатный пробный период активирован! Конфигурация отправлена на email (Иногда письмо приходит в СПАМ)."})
-
-
-import os
-import secrets
-
-CONF_DIR = os.environ.get("CONF_DIR", "configs")
-
-def generate_wireguard_conf(conf_path: str, email: str, plan_id: int):
-    """Генерация файла WireGuard-конфига"""
-    private_key = secrets.token_urlsafe(32)[:32]  # псевдо-ключ для примера
-    public_key = ""  # можно добавить если будешь хранить
-    endpoint = os.environ.get("WG_ENDPOINT", "vpn.example.com:51820")
-
-    conf_text = f"""[Interface]
-PrivateKey = {private_key}
-Address = 10.0.{plan_id}.{secrets.randbelow(200)+2}/32
-DNS = 8.8.8.8
-
-[Peer]
-PublicKey = {public_key}
-Endpoint = {endpoint}
-AllowedIPs = 0.0.0.0/0
-# Email: {email}
-# Plan: {plan_id}
-"""
-
-    os.makedirs(os.path.dirname(conf_path), exist_ok=True)
-    with open(conf_path, "w") as f:
-        f.write(conf_text)
-
-    return conf_path
-
 
 # ---------------------------
 # Startup
