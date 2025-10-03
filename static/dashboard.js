@@ -1,8 +1,5 @@
 /**
- * Dashboard JavaScript для личного кабинета SecureLink
- * - Авторизация через Telegram WebApp
- * - Покупка тарифов (редирект в YooKassa)
- * - Отображение конфигов (.conf и QR) после оплаты
+ * Dashboard SPA для SecureLink
  */
 
 class DashboardApp {
@@ -11,7 +8,7 @@ class DashboardApp {
         this.authToken = null;
         this.telegramWebApp = null;
         this.currentSection = 'dashboard';
-        this.init();
+        document.addEventListener('DOMContentLoaded', () => this.init());
     }
 
     async init() {
@@ -19,7 +16,7 @@ class DashboardApp {
             this.initTelegramWebApp();
             await this.checkAuth();
             this.initUI();
-            await this.loadSectionData(this.currentSection);
+            await this.showSection(this.currentSection);
         } catch (err) {
             console.error('Ошибка инициализации:', err);
             this.showToast('Ошибка загрузки приложения', 'error');
@@ -40,7 +37,7 @@ class DashboardApp {
             this.telegramWebApp.MainButton.show();
             this.telegramWebApp.MainButton.onClick(() => window.location.href = '/');
 
-            console.log('Telegram Web App initialized:', this.telegramWebApp.initDataUnsafe);
+            console.log('Telegram WebApp ready:', this.telegramWebApp.initDataUnsafe);
         }
     }
 
@@ -51,7 +48,8 @@ class DashboardApp {
                 const data = await this.apiCall('/auth/me');
                 this.currentUser = data.user;
                 return;
-            } catch {
+            } catch (err) {
+                console.warn('Auth token invalid, removing:', err);
                 localStorage.removeItem('authToken');
             }
         }
@@ -59,38 +57,33 @@ class DashboardApp {
         if (this.telegramWebApp?.initData) {
             await this.authenticateWithTelegram();
         } else {
+            console.warn('Нет токена и Telegram initData — редирект на /');
             window.location.href = '/';
         }
     }
 
     async authenticateWithTelegram() {
         try {
-            const response = await fetch('/auth/telegram', {
+            const res = await fetch('/auth/telegram', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ init_data: this.telegramWebApp.initData })
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Ошибка авторизации');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка авторизации');
             this.authToken = data.token;
             this.currentUser = data.user;
             localStorage.setItem('authToken', this.authToken);
             this.showToast('Успешная авторизация!', 'success');
         } catch (err) {
-            console.error('Ошибка авторизации через Telegram:', err);
+            console.error('Ошибка Telegram auth:', err);
             this.showToast('Ошибка авторизации', 'error');
             window.location.href = '/';
         }
     }
 
     initUI() {
-        this.initNavigation();
-        this.initButtons();
-        this.initModals();
-        this.updateUserInfo();
-    }
-
-    initNavigation() {
+        // Навигация
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', async e => {
                 e.preventDefault();
@@ -98,21 +91,21 @@ class DashboardApp {
                 await this.showSection(section);
             });
         });
-    }
 
-    initButtons() {
+        // Кнопки
         document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
         document.getElementById('renewSubscriptionBtn')?.addEventListener('click', () => window.location.href = '/');
         document.getElementById('buyNewSubscriptionBtn')?.addEventListener('click', () => window.location.href = '/');
         document.getElementById('saveSettingsBtn')?.addEventListener('click', () => this.saveSettings());
         document.getElementById('markAllReadBtn')?.addEventListener('click', () => this.markAllNotificationsRead());
-    }
 
-    initModals() {
+        // Модалки
         document.getElementById('configModalClose')?.addEventListener('click', () => this.closeModal('configModal'));
         document.getElementById('configModal')?.addEventListener('click', e => {
             if (e.target.id === 'configModal') this.closeModal('configModal');
         });
+
+        this.updateUserInfo();
     }
 
     updateUserInfo() {
@@ -124,16 +117,12 @@ class DashboardApp {
     }
 
     async showSection(sectionName) {
+        this.currentSection = sectionName;
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.querySelector(`[data-section="${sectionName}"]`)?.classList.add('active');
         document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-        const sectionEl = document.getElementById(`${sectionName}Section`);
-        if (sectionEl) sectionEl.classList.add('active');
-        this.currentSection = sectionName;
-        await this.loadSectionData(sectionName);
-    }
+        document.getElementById(`${sectionName}Section`)?.classList.add('active');
 
-    async loadSectionData(sectionName) {
         switch (sectionName) {
             case 'dashboard': await this.loadDashboardData(); break;
             case 'subscriptions': await this.loadSubscriptions(); break;
@@ -146,457 +135,115 @@ class DashboardApp {
 
     async loadDashboardData() {
         try {
-            const subs = await this.apiCall('/api/user/subscriptions');
-            this.updateDashboardSubscriptions(subs.subscriptions);
-            const traffic = await this.apiCall('/api/user/traffic');
-            this.updateDashboardTraffic(traffic);
-        } catch (err) { console.error(err); }
+            const subs = await this.safeApiCall('/api/user/subscriptions');
+            this.updateDashboardSubscriptions(subs?.subscriptions || []);
+            const traffic = await this.safeApiCall('/api/user/traffic');
+            this.updateDashboardTraffic(traffic || {});
+        } catch (err) { console.error('Ошибка dashboard data:', err); }
     }
 
-    
-    updateDashboardSubscriptions(subscriptions) {
-        const activeSubscription = subscriptions.find(sub => sub.status === 'paid' && !this.isExpired(sub.expires_at));
-        
-        const activeSubscriptionEl = document.getElementById('activeSubscription');
-        const subscriptionExpiryEl = document.getElementById('subscriptionExpiry');
-        const userPlanEl = document.getElementById('userPlan');
-        const renewBtn = document.getElementById('renewSubscriptionBtn');
-        
-        if (activeSubscription) {
-            if (activeSubscriptionEl) {
-                activeSubscriptionEl.textContent = activeSubscription.plan;
-            }
-            if (subscriptionExpiryEl) {
-                subscriptionExpiryEl.textContent = `Действует до ${this.formatDate(activeSubscription.expires_at)}`;
-            }
-            if (userPlanEl) {
-                userPlanEl.textContent = activeSubscription.plan;
-            }
-            if (renewBtn) {
-                renewBtn.style.display = 'inline-flex';
-            }
-        } else {
-            if (activeSubscriptionEl) {
-                activeSubscriptionEl.textContent = 'Нет активной подписки';
-            }
-            if (subscriptionExpiryEl) {
-                subscriptionExpiryEl.textContent = '—';
-            }
-            if (userPlanEl) {
-                userPlanEl.textContent = 'Без подписки';
-            }
-            if (renewBtn) {
-                renewBtn.style.display = 'inline-flex';
-            }
-        }
-    }
-    
-    updateDashboardTraffic(trafficData) {
-        const totalRx = trafficData.total_rx || 0;
-        const totalTx = trafficData.total_tx || 0;
-        const totalTraffic = totalRx + totalTx;
-        
-        const todayTrafficEl = document.getElementById('todayTraffic');
-        const trafficDetailsEl = document.getElementById('trafficDetails');
-        const connectionStatusEl = document.getElementById('connectionStatus');
-        const connectionIPEl = document.getElementById('connectionIP');
-        
-        if (todayTrafficEl) {
-            todayTrafficEl.textContent = this.formatBytes(totalTraffic);
-        }
-        if (trafficDetailsEl) {
-            trafficDetailsEl.textContent = `↓ ${this.formatBytes(totalRx)} ↑ ${this.formatBytes(totalTx)}`;
-        }
-        
-        // Статус подключения
-        const activeConnection = trafficData.traffic?.find(t => t.online);
-        if (activeConnection) {
-            if (connectionStatusEl) {
-                connectionStatusEl.textContent = 'Онлайн';
-                connectionStatusEl.className = 'stat-value online';
-            }
-            if (connectionIPEl) {
-                connectionIPEl.textContent = `IP: ${activeConnection.client_ip}`;
-            }
-        } else {
-            if (connectionStatusEl) {
-                connectionStatusEl.textContent = 'Офлайн';
-                connectionStatusEl.className = 'stat-value offline';
-            }
-            if (connectionIPEl) {
-                connectionIPEl.textContent = '—';
-            }
-        }
-    }
-    
     async loadSubscriptions() {
         const container = document.getElementById('subscriptionsList');
         if (!container) return;
-        
         container.innerHTML = '<div class="loading">Загрузка подписок...</div>';
-        
         try {
-            const response = await this.apiCall('/api/user/subscriptions');
-            if (response.ok) {
-                this.renderSubscriptions(response.subscriptions);
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки подписок:', error);
+            const data = await this.safeApiCall('/api/user/subscriptions');
+            this.renderSubscriptions(data?.subscriptions || []);
+        } catch (err) {
+            console.error('Ошибка подписок:', err);
             container.innerHTML = '<div class="error">Ошибка загрузки подписок</div>';
         }
     }
-    
-    renderSubscriptions(subscriptions) {
-        const container = document.getElementById('subscriptionsList');
-        if (!container) return;
-        
-        if (subscriptions.length === 0) {
-            container.innerHTML = '<div class="empty-state">У вас пока нет подписок</div>';
-            return;
-        }
-        
-        container.innerHTML = subscriptions.map(sub => `
-            <div class="subscription-item">
-                <div class="item-header">
-                    <div class="item-title">${sub.plan}</div>
-                    <div class="item-status ${this.getStatusClass(sub.status, sub.expires_at)}">
-                        ${this.getStatusText(sub.status, sub.expires_at)}
-                    </div>
-                </div>
-                <div class="item-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Цена</div>
-                        <div class="detail-value">${sub.price} ₽</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Дата создания</div>
-                        <div class="detail-value">${this.formatDate(sub.created_at)}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Действует до</div>
-                        <div class="detail-value">${sub.expires_at ? this.formatDate(sub.expires_at) : '—'}</div>
-                    </div>
-                </div>
-                <div class="item-actions">
-                    ${sub.has_config ? `
-                        <button class="btn btn-primary" onclick="dashboardApp.downloadConfig(${sub.id})">
-                            Скачать конфиг
-                        </button>
-                        <button class="btn btn-secondary" onclick="dashboardApp.showQRCode(${sub.id})">
-                            QR-код
-                        </button>
-                    ` : ''}
-                    ${this.isExpired(sub.expires_at) ? `
-                        <button class="btn btn-success" onclick="window.location.href='/'">
-                            Продлить
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-        `).join('');
-    }
-    
+
     async loadConfigs() {
         const container = document.getElementById('configsList');
         if (!container) return;
-        
         container.innerHTML = '<div class="loading">Загрузка конфигураций...</div>';
-        
         try {
-            const response = await this.apiCall('/api/user/configs');
-            if (response.ok) {
-                this.renderConfigs(response.configs);
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки конфигураций:', error);
+            const data = await this.safeApiCall('/api/user/configs');
+            this.renderConfigs(data?.configs || []);
+        } catch (err) {
+            console.error('Ошибка конфигураций:', err);
             container.innerHTML = '<div class="error">Ошибка загрузки конфигураций</div>';
         }
     }
-    
-    renderConfigs(configs) {
-        const container = document.getElementById('configsList');
-        if (!container) return;
-        
-        if (configs.length === 0) {
-            container.innerHTML = '<div class="empty-state">У вас пока нет конфигураций</div>';
-            return;
-        }
-        
-        container.innerHTML = configs.map(config => `
-            <div class="config-item">
-                <div class="item-header">
-                    <div class="item-title">${config.plan}</div>
-                    <div class="item-status ${this.getStatusClass(config.status, config.expires_at)}">
-                        ${this.getStatusText(config.status, config.expires_at)}
-                    </div>
-                </div>
-                <div class="item-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Дата создания</div>
-                        <div class="detail-value">${this.formatDate(config.created_at)}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Действует до</div>
-                        <div class="detail-value">${config.expires_at ? this.formatDate(config.expires_at) : '—'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Файл</div>
-                        <div class="detail-value">${config.has_file ? 'Доступен' : 'Не найден'}</div>
-                    </div>
-                </div>
-                <div class="item-actions">
-                    ${config.has_file ? `
-                        <button class="btn btn-primary" onclick="dashboardApp.downloadConfig(${config.id})">
-                            Скачать .conf
-                        </button>
-                        <button class="btn btn-secondary" onclick="dashboardApp.showQRCode(${config.id})">
-                            Показать QR-код
-                        </button>
-                    ` : `
-                        <div class="text-muted">Конфигурация недоступна</div>
-                    `}
-                </div>
-            </div>
-        `).join('');
-    }
-    
+
     async loadTrafficStats() {
         const container = document.getElementById('trafficStats');
         if (!container) return;
-        
         container.innerHTML = '<div class="loading">Загрузка статистики...</div>';
-        
         try {
-            const response = await this.apiCall('/api/user/traffic');
-            if (response.ok) {
-                this.renderTrafficStats(response);
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки статистики трафика:', error);
+            const data = await this.safeApiCall('/api/user/traffic');
+            this.renderTrafficStats(data || {});
+        } catch (err) {
+            console.error('Ошибка трафика:', err);
             container.innerHTML = '<div class="error">Ошибка загрузки статистики</div>';
         }
     }
-    
-    renderTrafficStats(trafficData) {
-        const container = document.getElementById('trafficStats');
-        if (!container) return;
-        
-        if (!trafficData.traffic || trafficData.traffic.length === 0) {
-            container.innerHTML = '<div class="empty-state">Нет данных о трафике</div>';
-            return;
-        }
-        
-        container.innerHTML = `
-            <div class="traffic-summary">
-                <div class="stats-card">
-                    <div class="stats-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M3 3v18h18"></path>
-                            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
-                        </svg>
-                    </div>
-                    <div class="stats-content">
-                        <h3>Общий трафик</h3>
-                        <div class="stat-value">${this.formatBytes(trafficData.total_rx + trafficData.total_tx)}</div>
-                        <div class="stat-label">↓ ${this.formatBytes(trafficData.total_rx)} ↑ ${this.formatBytes(trafficData.total_tx)}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="traffic-details">
-                ${trafficData.traffic.map(t => `
-                    <div class="traffic-item">
-                        <div class="traffic-header">
-                            <div class="traffic-plan">${t.plan}</div>
-                            <div class="traffic-status ${t.online ? 'online' : 'offline'}">
-                                ${t.online ? 'Онлайн' : 'Офлайн'}
-                            </div>
-                        </div>
-                        <div class="traffic-stats">
-                            <div class="traffic-stat">
-                                <span class="label">IP:</span>
-                                <span class="value">${t.client_ip}</span>
-                            </div>
-                            <div class="traffic-stat">
-                                <span class="label">Скачано:</span>
-                                <span class="value">${this.formatBytes(t.rx_bytes)}</span>
-                            </div>
-                            <div class="traffic-stat">
-                                <span class="label">Загружено:</span>
-                                <span class="value">${this.formatBytes(t.tx_bytes)}</span>
-                            </div>
-                            <div class="traffic-stat">
-                                <span class="label">Скорость:</span>
-                                <span class="value">↓ ${this.formatSpeed(t.speed_rx)} ↑ ${this.formatSpeed(t.speed_tx)}</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-    
+
     async loadNotifications() {
         const container = document.getElementById('notificationsList');
         if (!container) return;
-        
         container.innerHTML = '<div class="loading">Загрузка уведомлений...</div>';
-        
         try {
-            const response = await this.apiCall('/api/user/notifications');
-            if (response.ok) {
-                this.renderNotifications(response.notifications);
-                this.updateNotificationBadge(response.unread_count);
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки уведомлений:', error);
+            const data = await this.safeApiCall('/api/user/notifications');
+            this.renderNotifications(data?.notifications || []);
+            this.updateNotificationBadge(data?.unread_count || 0);
+        } catch (err) {
+            console.error('Ошибка уведомлений:', err);
             container.innerHTML = '<div class="error">Ошибка загрузки уведомлений</div>';
         }
     }
-    
-    renderNotifications(notifications) {
-        const container = document.getElementById('notificationsList');
-        if (!container) return;
-        
-        if (notifications.length === 0) {
-            container.innerHTML = '<div class="empty-state">У вас нет уведомлений</div>';
-            return;
-        }
-        
-        container.innerHTML = notifications.map(notification => `
-            <div class="notification-item ${notification.is_read ? '' : 'unread'}">
-                <div class="notification-header">
-                    <div class="notification-title">${notification.title}</div>
-                    <div class="notification-time">${this.formatDate(notification.created_at)}</div>
-                </div>
-                <div class="notification-message">${notification.message}</div>
-                ${!notification.is_read ? `
-                    <div class="notification-actions">
-                        <button class="btn btn-ghost btn-sm" onclick="dashboardApp.markNotificationRead(${notification.id})">
-                            Отметить как прочитанное
-                        </button>
-                    </div>
-                ` : ''}
-            </div>
-        `).join('');
-    }
-    
+
     async loadSettings() {
         if (!this.currentUser) return;
-        
-        // Заполняем поля настроек
-        const usernameInput = document.getElementById('usernameInput');
-        const emailInput = document.getElementById('emailInput');
-        const languageSelect = document.getElementById('languageSelect');
-        
-        if (usernameInput) {
-            usernameInput.value = this.currentUser.username || '';
-        }
-        if (emailInput) {
-            emailInput.value = this.currentUser.email || '';
-        }
-        if (languageSelect) {
-            languageSelect.value = this.currentUser.language_code || 'ru';
-        }
+        document.getElementById('usernameInput')?.value = this.currentUser.username || '';
+        document.getElementById('emailInput')?.value = this.currentUser.email || '';
+        document.getElementById('languageSelect')?.value = this.currentUser.language_code || 'ru';
     }
-    
-    async downloadConfig(orderId) {
+
+    async downloadConfig(configId) {
         try {
-            const response = await fetch(`/download/${orderId}`, {
-                headers: {
-                    'Authorization': `Bearer ${this.authToken}`
-                }
+            const res = await fetch(`/api/configs/${configId}/download`, {
+                headers: { 'Authorization': `Bearer ${this.authToken}` }
             });
-            
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `securelink_${orderId}.conf`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                this.showToast('Конфигурация скачана', 'success');
+            if (!res.ok) throw new Error('Ошибка скачивания');
+
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `securelink_${configId}.conf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            this.showToast('Конфигурация скачана', 'success');
+        } catch (err) {
+            console.error('downloadConfig error', err);
+            this.showToast('Ошибка скачивания', 'error');
+        }
+    }
+
+    async showQRCode(configId) {
+        try {
+            const data = await this.safeApiCall(`/api/configs/${configId}/qr`);
+            if (data?.qr_url) {
+                const img = document.getElementById('qrImage');
+                if (img) img.src = data.qr_url;
+                this.showModal('configModal');
             } else {
-                throw new Error('Ошибка скачивания');
+                this.showToast('QR-код недоступен', 'error');
             }
-        } catch (error) {
-            console.error('Ошибка скачивания конфигурации:', error);
-            this.showToast('Ошибка скачивания конфигурации', 'error');
+        } catch (err) {
+            console.error('showQRCode error', err);
+            this.showToast('Ошибка загрузки QR', 'error');
         }
     }
-    
-    async showQRCode(orderId) {
-        try {
-            const response = await fetch(`/qr/${orderId}`, {
-                headers: {
-                    'Authorization': `Bearer ${this.authToken}`
-                }
-            });
-            
-            if (response.ok) {
-                const blob = await response.blob();
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.getElementById('qrCanvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    
-                    this.showModal('configModal');
-                    document.getElementById('qrContainer').style.display = 'block';
-                };
-                img.src = URL.createObjectURL(blob);
-            } else {
-                throw new Error('Ошибка загрузки QR-кода');
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки QR-кода:', error);
-            this.showToast('Ошибка загрузки QR-кода', 'error');
-        }
-    }
-    
-    async markNotificationRead(notificationId) {
-        try {
-            const response = await this.apiCall(`/api/user/notifications/${notificationId}/read`, 'POST');
-            if (response.ok) {
-                this.showToast('Уведомление отмечено как прочитанное', 'success');
-                await this.loadNotifications();
-            }
-        } catch (error) {
-            console.error('Ошибка обновления уведомления:', error);
-            this.showToast('Ошибка обновления уведомления', 'error');
-        }
-    }
-    
-    async markAllNotificationsRead() {
-        // Реализация для отметки всех уведомлений как прочитанных
-        this.showToast('Функция в разработке', 'info');
-    }
-    
-    async saveSettings() {
-        const email = document.getElementById('emailInput')?.value;
-        const language = document.getElementById('languageSelect')?.value;
-        
-        try {
-            // Здесь будет API для сохранения настроек
-            this.showToast('Настройки сохранены', 'success');
-        } catch (error) {
-            console.error('Ошибка сохранения настроек:', error);
-            this.showToast('Ошибка сохранения настроек', 'error');
-        }
-    }
-    
+
     async logout() {
         try {
-            if (this.authToken) {
-                await this.apiCall('/auth/logout', 'POST');
-            }
-        } catch (error) {
-            console.error('Ошибка выхода:', error);
+            if (this.authToken) await this.safeApiCall('/auth/logout', 'POST');
+        } catch (err) {
+            console.error('Logout error', err);
         } finally {
             localStorage.removeItem('authToken');
             this.authToken = null;
@@ -604,188 +251,63 @@ class DashboardApp {
             window.location.href = '/';
         }
     }
-    
-    // Утилиты
+
+    // -------------------------
+    // Общие утилиты
+    // -------------------------
     async apiCall(endpoint, method = 'GET', body = null) {
-        const options = {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        };
-        
-        if (this.authToken) {
-            options.headers['Authorization'] = `Bearer ${this.authToken}`;
-        }
-        
-        if (body) {
-            options.body = JSON.stringify(body);
-        }
-        
-        const response = await fetch(endpoint, options);
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.error || 'Ошибка API');
-        }
-        
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (this.authToken) options.headers['Authorization'] = `Bearer ${this.authToken}`;
+        if (body) options.body = JSON.stringify(body);
+
+        const res = await fetch(endpoint, options);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка API');
         return data;
     }
-    
-    showModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.add('active');
-        }
+
+    // Безопасная версия для try/catch
+    async safeApiCall(endpoint, method = 'GET', body = null) {
+        try { return await this.apiCall(endpoint, method, body); }
+        catch (err) { console.error(`API call error (${endpoint}):`, err); return null; }
     }
-    
-    closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.remove('active');
-        }
-    }
-    
-    showToast(message, type = 'info') {
+
+    showModal(id) { document.getElementById(id)?.classList.add('active'); }
+    closeModal(id) { document.getElementById(id)?.classList.remove('active'); }
+
+    showToast(msg, type = 'info') {
         const container = document.getElementById('toastContainer');
         if (!container) return;
-        
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <div class="toast-content">
-                <span>${message}</span>
-            </div>
-        `;
-        
+        toast.textContent = msg;
         container.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
+        setTimeout(() => toast.remove(), 5000);
     }
-    
+
     updateNotificationBadge(count) {
         const badge = document.getElementById('notificationBadge');
-        if (badge) {
-            if (count > 0) {
-                badge.textContent = count;
-                badge.style.display = 'inline-block';
-            } else {
-                badge.style.display = 'none';
-            }
-        }
+        if (!badge) return;
+        badge.textContent = count > 0 ? count : '';
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
     }
-    
+
     formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
+        if (!bytes) return '0 B';
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
     }
-    
-    formatSpeed(bytesPerSec) {
-        if (bytesPerSec === 0) return '0 B/s';
-        return this.formatBytes(bytesPerSec) + '/s';
-    }
-    
-    formatDate(dateString) {
-        if (!dateString) return '—';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('ru-RU', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    }
-    
-    isExpired(expiresAt) {
-        if (!expiresAt) return false;
-        return new Date(expiresAt) < new Date();
-    }
-    
-    getStatusClass(status, expiresAt) {
-        if (this.isExpired(expiresAt)) return 'expired';
-        if (status === 'paid') return 'active';
-        if (status === 'pending') return 'pending';
-        return 'expired';
-    }
-    
-    getStatusText(status, expiresAt) {
-        if (this.isExpired(expiresAt)) return 'Истекла';
-        if (status === 'paid') return 'Активна';
-        if (status === 'pending') return 'Ожидает оплаты';
-        return 'Неактивна';
-    }
+
+    formatSpeed(bps) { return this.formatBytes(bps) + '/s'; }
+    formatDate(ds) { return ds ? new Date(ds).toLocaleString('ru-RU', { hour12: false }) : '—'; }
+    isExpired(expiresAt) { return expiresAt ? new Date(expiresAt) < new Date() : false; }
+    getStatusClass(status, expiresAt) { if (this.isExpired(expiresAt)) return 'expired'; return status === 'paid' ? 'active' : status === 'pending' ? 'pending' : 'expired'; }
+    getStatusText(status, expiresAt) { return this.isExpired(expiresAt) ? 'Истекла' : status === 'paid' ? 'Активна' : status === 'pending' ? 'Ожидает оплаты' : 'Неактивна'; }
 }
 
-
-async downloadConfig(configId) {
-    try {
-        const response = await fetch(`/api/configs/${configId}/download`, {
-            headers: { 'Authorization': `Bearer ${this.authToken}` }
-        });
-        if (!response.ok) throw new Error('Ошибка скачивания');
-
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `securelink_${configId}.conf`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        this.showToast('Конфигурация скачана', 'success');
-    } catch (err) {
-        console.error('downloadConfig error', err);
-        this.showToast('Ошибка скачивания', 'error');
-    }
-}
-
-try {
-    const response = await this.apiCall('/api/user/configs');
-    console.log('Configs response:', response);
-} catch (err) {
-    console.error('Ошибка загрузки конфигураций:', err);
-}
-
-async showQRCode(configId) {
-    try {
-        const response = await this.apiCall(`/api/configs/${configId}/qr`);
-        if (response.ok && response.qr_url) {
-            // открыть модальное окно с QR
-            const img = document.getElementById('qrImage');
-            img.src = response.qr_url;
-            this.openModal('configModal');
-        } else {
-            this.showToast('QR-код недоступен', 'error');
-        }
-    } catch (err) {
-        console.error('showQRCode error', err);
-        this.showToast('Ошибка загрузки QR', 'error');
-    }
-}
-
-
-try {
-    const response = await this.apiCall('/api/user/configs');
-    console.log('Configs response:', response);
-    if (response.configs?.length) {
-        this.renderConfigs(response.configs);
-    } else {
-        container.innerHTML = '<div class="empty-state">У вас пока нет конфигураций</div>';
-    }
-} catch (err) {
-    console.error('Ошибка загрузки конфигураций:', err);
-    container.innerHTML = '<div class="error">Ошибка загрузки конфигураций</div>';
-}
-
+// -------------------------
 // Инициализация
-let dashboardApp;
-document.addEventListener('DOMContentLoaded', () => {
-    dashboardApp = new DashboardApp();
-    window.dashboardApp = dashboardApp;
-});
+// -------------------------
+window.dashboardApp = new DashboardApp();
