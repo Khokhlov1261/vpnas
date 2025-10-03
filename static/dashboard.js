@@ -303,7 +303,7 @@ class DashboardApp {
         container.innerHTML = '<div class="loading">Загрузка конфигураций...</div>';
 
         try {
-            const response = await this.apiCall('/api/user/securelink/SecureLink/configs');
+            const response = await this.apiCall('/api/user/configs');
             if (response.ok) {
                 this.renderConfigs(response.configs);
             }

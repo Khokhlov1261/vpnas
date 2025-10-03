@@ -167,7 +167,7 @@ async def start_command(message: types.Message):
                     order_id, conf_file, plan_name = row
                     try:
                         # Отправляем .conf
-                        doc = FSInputFile(conf_file, filename=f"securelink_{order_id}.conf")
+                        doc = FSInputFile(conf_file, filename=f"wg_{order_id}.conf")
                         await bot.send_document(chat_id=message.chat.id, document=doc, caption=f"Тариф: {plan_name}\n{INSTRUCTION_TEXT}")
                         # QR
                         with open(conf_file, 'r') as f:
@@ -175,7 +175,7 @@ async def start_command(message: types.Message):
                         buf = BytesIO()
                         qrcode.make(conf_text).save(buf, format='PNG')
                         buf.seek(0)
-                        photo = BufferedInputFile(buf.read(), filename=f"securelink_{order_id}.png")
+                        photo = BufferedInputFile(buf.read(), filename=f"wg_{order_id}.png")
                         await bot.send_photo(chat_id=message.chat.id, photo=photo, caption="QR для импорта")
                         # Сообщение об успехе и меню
                         user = message.from_user
