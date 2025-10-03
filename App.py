@@ -75,6 +75,7 @@ FROM_EMAIL = cfg.FROM_EMAIL
 JWT_SECRET = cfg.JWT_SECRET
 TELEGRAM_BOT_TOKEN = cfg.TELEGRAM_BOT_TOKEN
 TELEGRAM_WEBHOOK_URL = cfg.TELEGRAM_WEBHOOK_URL
+dsn = "dbname=securelink user=securelink password=Holanewpass1992 host=vpnas-db-1 port=5432"
 
 # Logging
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(asctime)s %(message)s")
